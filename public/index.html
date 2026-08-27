@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>수학 놀이 도구</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+    <div id="countdown-modal" style="display:none;"></div>
+    
+    <div id="login-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#000;z-index:9999;display:flex;justify-content:center;align-items:center;">
+        <div style="background:#fff;padding:30px;border-radius:20px;color:#000;text-align:center;width:280px; max-width:90%;">
+            <h2 style="color:#0984e3">수학 놀이 도구</h2>
+            <input type="text" id="nick-in" placeholder="닉네임 입력" maxlength="6" style="width:100%;padding:12px;margin-bottom:10px;border-radius:8px;border:1px solid #ddd; box-sizing:border-box;">
+            <input type="password" id="code-in" placeholder="입장 코드" style="width:100%;padding:12px;margin-bottom:15px;border-radius:8px;border:1px solid #ddd; box-sizing:border-box;">
+            <button onclick="join()" style="width:100%;padding:15px;background:#0984e3;color:#fff;border:none;border-radius:10px;font-weight:bold;font-size:16px;">입장하기</button>
+        </div>
+    </div>
+
+    <div id="qr-modal">
+        <div style="color:#555; font-size:12px; margin-bottom:5px;">클릭하면 대화면으로 커집니다.</div>
+        <div id="qr-code-display" style="margin: 10px auto; cursor:pointer;" onclick="toggleQRFullscreen()"></div>
+        <button class="manual-close" onclick="closeQR()">닫기</button>
+    </div>
+
+    <div id="modal-layer"></div>
+
+    <div id="settings-modal" style="display:none;">
+        <div class="settings-content">
+            <h3>⚙️ 가르기 모으기 설정</h3>
+            <div class="setting-group">
+                <h4>1. 문제 유형</h4>
+                <select id="modal-bond-mode" style="width:100%; padding:5px;">
+                    <option value="MIX">혼합 (가르기 + 모으기)</option>
+                    <option value="SPLIT">가르기 (빼기 기초)</option>
+                    <option value="GATHER">모으기 (더하기 기초)</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <h4>2. 출제 범위</h4>
+                <div style="text-align:left; padding-left:10px;">
+                    <label><input type="checkbox" name="modal_bond_range" value="9" checked> 9 이하의 수</label><br>
+                    <label><input type="checkbox" name="modal_bond_range" value="10"> 합이 10이 되는 수</label><br>
+                    <label><input type="checkbox" name="modal_bond_range" value="19_BASIC"> 10 이용 (11~19)</label><br>
+                    <label><input type="checkbox" name="modal_bond_range" value="19_HARD"> 받아올림 심화 (11~19)</label>
+                </div>
+            </div>
+            <div class="setting-group">
+                <h4>3. 표시 방식</h4>
+                <select id="modal-bond-display" style="width:100%; padding:5px;">
+                    <option value="NUM">숫자만</option>
+                    <option value="DOT">바둑돌 (●)</option>
+                    <option value="MIX">숫자 + 바둑돌 혼합</option>
+                </select>
+            </div>
+            <button class="save-btn" onclick="applyBondSettings()">적용하기</button>
+            <button class="cancel-btn" onclick="$('settings-modal').style.display='none'">취소</button>
+        </div>
+    </div>
+
+    <div id="live-rank">
+        <div class="rank-header">
+            <span id="rank-title">🏆 순위</span>
+            <button id="rank-toggle-btn" onclick="toggleRankUI()">접기</button>
+        </div>
+        <div id="rank-content"></div>
+    </div>
+
+    <div id="status-panel">
+        <div class="bond-stat-row correct">⭕ 정답: <span id="stat-o"></span></div>
+        <div class="bond-stat-row wrong">❌ 오답: <span id="stat-x"></span></div>
+        <div class="bond-stat-row yet">⏳ 대기: <span id="stat-yet"></span></div>
+    </div>
+
+    <div id="game-area">
+        <div id="game-title-badge">대기실</div>
+        
+        <div id="lobby-view" style="display:none; flex-direction:column; align-items:center; width:100%;">
+            <div id="lobby-grid"></div>
+            <button id="logout-btn" onclick="logout()" style="display:none; margin-top:30px; padding:12px 25px; background:#e17055; color:#fff; border:none; border-radius:10px; font-weight:bold; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.1);">🔄 이름 변경 (나가기)</button>
+        </div>
+
+        <div id="updown-game-area">
+            <div id="updown-left-col">
+                <div id="updown-feedback">START</div>
+                <div id="updown-display">0</div> 
+                <div id="updown-keypad">
+                    <button class="mem-key" onclick="udIn(1)">1</button><button class="mem-key" onclick="udIn(2)">2</button><button class="mem-key" onclick="udIn(3)">3</button>
+                    <button class="mem-key" onclick="udIn(4)">4</button><button class="mem-key" onclick="udIn(5)">5</button><button class="mem-key" onclick="udIn(6)">6</button>
+                    <button class="mem-key" onclick="udIn(7)">7</button><button class="mem-key" onclick="udIn(8)">8</button><button class="mem-key" onclick="udIn(9)">9</button>
+                    <button class="mem-key mem-del" onclick="udDel()">⬅</button><button class="mem-key" onclick="udIn(0)">0</button><button class="mem-key mem-submit" onclick="udSubmit()">입력</button>
+                </div>
+            </div>
+            <div id="updown-right-col">
+                <div style="text-align:center; color:#ccc; font-size:12px; margin-bottom:5px;">내 기록</div>
+                <div id="updown-history"></div> 
+            </div>
+        </div>
+
+        <div id="fifty-game-area">
+            <div id="fifty-timer-display">⏱️ 0.00초</div>
+            <div id="fifty-info">찾아야 할 숫자: <span id="fifty-target" style="color:#ffa502;">1</span></div>
+            <div id="fifty-grid"></div>
+        </div>
+
+        <div id="bond-game-area">
+            <div id="bond-visual-wrapper">
+                <div id="bond-msg"></div>
+                <div id="bond-visual">
+                    <div class="bond-circle top" id="bond-top"></div>
+                    <svg width="100%" height="100%" style="position:absolute; top:0; left:0; z-index:0; pointer-events:none;">
+                        <line x1="50%" y1="90" x2="30%" y2="150" style="stroke:rgba(255,255,255,0.5); stroke-width:5" />
+                        <line x1="50%" y1="90" x2="70%" y2="150" style="stroke:rgba(255,255,255,0.5); stroke-width:5" />
+                    </svg>
+                    <div class="bond-row">
+                        <div class="bond-circle bottom" id="bond-left"></div>
+                        <div class="bond-circle bottom" id="bond-right"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="bond-input-area">
+                 <div id="bond-display"></div>
+                 <div id="bond-keypad">
+                    <button class="mem-key" onclick="bondIn(1)">1</button><button class="mem-key" onclick="bondIn(2)">2</button><button class="mem-key" onclick="bondIn(3)">3</button>
+                    <button class="mem-key" onclick="bondIn(4)">4</button><button class="mem-key" onclick="bondIn(5)">5</button><button class="mem-key" onclick="bondIn(6)">6</button>
+                    <button class="mem-key" onclick="bondIn(7)">7</button><button class="mem-key" onclick="bondIn(8)">8</button><button class="mem-key" onclick="bondIn(9)">9</button>
+                    <button class="mem-key mem-del" onclick="bondDel()">⬅</button><button class="mem-key" onclick="bondIn(0)">0</button><button class="mem-key mem-submit" onclick="bondSubmit()">입력</button>
+                 </div>
+            </div>
+        </div>
+
+        <div id="wolf-game-area" style="display:none; flex-direction:column; align-items:center;">
+            <div id="wolf-msg" class="big-msg">선생님이 게임을 시작할 때까지 기다리세요!</div>
+            <div id="wolf-stage"></div>
+        </div>
+
+        <div id="missing-game-area" style="display:none; flex-direction:column; align-items:center; width:100%; height:100%;">
+            <div id="missing-stage-view" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
+                <div id="missing-msg" class="big-msg">선생님이 게임을 시작할 때까지 기다리세요!</div>
+                <div id="missing-emoji-display">🕵️‍♂️</div>
+            </div>
+            <div id="missing-quiz-view" style="display:none; flex-direction:column; align-items:center; justify-content:center; height:100%; width:100%;">
+                <div id="missing-quiz-msg" class="big-msg">아까 나오지 않은 것은 몇 번일까요?</div>
+                <div id="missing-options" class="options-group"></div>
+            </div>
+        </div>
+
+        <div id="memory-game-area" style="display:none; flex-direction:column; align-items:center;">
+            <div id="memory-timer-display" style="font-size:20px; font-weight:bold; color:#d63031; margin-bottom:5px; background:#fff; padding:5px 15px; border-radius:10px; display:none;">⏳ 남은 시간: 30초</div>
+            <div id="memory-target-display" class="big-msg" style="margin-bottom:10px; font-size:28px;">외울 순서: </div>
+            <div id="memory-msg" class="big-msg" style="margin-bottom:15px; font-size:20px;">선생님이 게임을 시작할 때까지 기다리세요!</div>
+            <button id="memory-replay-btn" class="admin-btn" style="background:#f1c40f; color:#000; width:auto; padding:10px 20px; font-size:16px; margin-bottom:15px; display:none; font-weight:bold;">👀 다시보기 (-50점)</button>
+            <div id="memory-grid">
+                <div class="mem-box" data-index="0" onclick="memoryClick(0)"><span class="mem-num">1</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="1" onclick="memoryClick(1)"><span class="mem-num">2</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="2" onclick="memoryClick(2)"><span class="mem-num">3</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="3" onclick="memoryClick(3)"><span class="mem-num">4</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="4" onclick="memoryClick(4)"><span class="mem-num">5</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="5" onclick="memoryClick(5)"><span class="mem-num">6</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="6" onclick="memoryClick(6)"><span class="mem-num">7</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="7" onclick="memoryClick(7)"><span class="mem-num">8</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="8" onclick="memoryClick(8)"><span class="mem-num">9</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="9" onclick="memoryClick(9)"><span class="mem-num">10</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="10" onclick="memoryClick(10)"><span class="mem-num">11</span><span class="mem-heart"></span></div>
+                <div class="mem-box" data-index="11" onclick="memoryClick(11)"><span class="mem-num">12</span><span class="mem-heart"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-panel">
+        <div id="admin-user-box" class="admin-box">
+            <div class="admin-label" id="admin-label-users" onclick="toggleAdmin('user-content', this)">학생 관리 <span class="toggle-btn">[접기]</span></div>
+            <div id="user-content">
+                <button id="lock-btn" class="admin-btn" onclick="toggleLock()">🔓 입장 허용 중</button>
+                <button id="qr-btn" class="admin-btn" onclick="showQRCode()" style="background:#0984e3; margin-top:5px;">📱 QR 코드</button>
+                
+                <button id="toggle-rank-vis-btn" class="admin-btn" onclick="socket.emit('toggleRankVisibility')" style="background:#8e44ad; margin-top:5px;">👁️ 학생 화면 랭킹 숨기기</button>
+                
+                <div id="admin-user-list"></div>
+            </div>
+        </div>
+        
+        <div id="admin-mode-box" class="admin-box">
+            <div class="admin-label" onclick="toggleAdmin('mode-content', this)">수학/놀이 도구 <span class="toggle-btn">[접기]</span></div>
+            <div id="mode-content">
+                <button class="admin-btn mode-select-btn" style="background:#48dbfb; color:#000;" onclick="req('UPDOWN_READY')">↕️ 업다운 게임</button>
+                <button class="admin-btn mode-select-btn" style="background:#ff9f43; color:#fff;" onclick="req('FIFTY_READY')">🔢 1 to 50</button>
+                <button class="admin-btn mode-select-btn" style="background:#a55eea; color:#fff;" onclick="req('BOND_READY')">🍒 가르기 모으기</button>
+                <button class="admin-btn mode-select-btn" style="background:#2ecc71; color:#fff;" onclick="req('WOLF_READY')">🐺 늑대를 찾아라</button>
+                <button class="admin-btn mode-select-btn" style="background:#e67e22; color:#fff;" onclick="req('MISSING_READY')">🕵️ 깜빡 퀴즈</button>
+                <button class="admin-btn mode-select-btn" style="background:#e84393; color:#fff;" onclick="req('MEMORY_READY')">🧠 기억력 게임</button>
+                <button class="admin-btn mode-select-btn" style="background:#6c5ce7; color:#fff;" onclick="window.location.href='math_stairs.html'">🪜 수학의 계단</button>
+
+                <div id="setting-row-updown" style="display:none;">
+                    <div class="admin-setting-grid"><label>최대 숫자</label><input type="number" id="updown-max-input" value="100" onchange="socket.emit('setUpdownMax', this.value)"></div>
+                </div>
+                <div id="admin-updown-answer-box" style="display:none; margin-top:5px; text-align:center;"><button class="admin-btn" style="background:#333; border:1px solid #aaa;" onclick="toggleAdminAnswer()">🔒 정답 보기</button><div id="admin-updown-answer-text" style="display:none; color:#2ed573; font-weight:bold; font-size:16px;">???</div></div>
+
+                <div id="setting-row-fifty" style="display:none;">
+                    <div class="admin-setting-grid"><label>게임 모드</label><select id="fifty-mode-select" onchange="toggleFiftyTargetSelect(); updateFiftySettings();"><option value="NORMAL">기본전</option><option value="AVERAGE">반 평균</option><option value="BEAT">이겨라</option></select><label id="fifty-target-label" style="display:none;">타겟</label><select id="fifty-target-select" onchange="updateFiftySettings()" style="display:none;"></select></div>
+                </div>
+
+                <div id="setting-row-bond" style="display:none; margin-top:10px;"><button class="admin-btn" onclick="openSettings()" style="background:#2d3436; border:1px solid #aaa;">⚙️ 문제 상세설정</button></div>
+
+                <div id="setting-row-wolf" style="display:none;">
+                    <div class="admin-setting-grid"><label>총 마리수</label><input type="number" id="wolf-cnt" value="3" min="3" max="12" onchange="updateWolfSettings()"><label>이동 속도</label><input type="number" id="wolf-speed" value="5" onchange="updateWolfSettings()"><label>섞는 횟수</label><input type="number" id="wolf-shuffles" value="15" onchange="updateWolfSettings()"></div>
+                </div>
+
+                <div id="setting-row-missing" style="display:none;">
+                    <div class="admin-setting-grid"><label>퀴즈 주제</label><select id="missing-cat" onchange="updateMissingSettings()"><option value="animal">🐶 동물/곤충</option><option value="food">🍔 음식/과일</option><option value="object">🧸 물건</option><option value="vehicle">🚗 탈것</option><option value="character">🕵️ 캐릭터</option><option value="all">🌪️ 몽땅 섞기</option></select><label>보여줄 속도</label><input type="number" id="missing-spd" value="10" onchange="updateMissingSettings()"><label>보여줄 갯수</label><input type="number" id="missing-cnt" value="5" onchange="updateMissingSettings()"><label>보기 갯수</label><input type="number" id="missing-opt" value="4" onchange="updateMissingSettings()"></div>
+                </div>
+
+                <div id="setting-row-memory" style="display:none;">
+                    <div class="admin-setting-grid"><label>하트 개수</label><input type="number" id="memory-cnt" value="4" min="4" max="6" onchange="updateMemorySettings()"></div>
+                </div>
+
+                <button id="admin-start-btn" class="admin-btn" onclick="socket.emit('startGameSignal')" style="background:#ff4757; display:none; margin-top:10px;">게임 시작</button>
+                <button id="admin-next-btn" class="admin-btn" onclick="socket.emit('adminNextRound')" style="background:#6c5ce7; display:none; margin-top:10px;">▶ 다음 문제/라운드</button>
+                <button id="admin-force-round-end-btn" class="admin-btn" onclick="if(confirm('진행 중인 라운드를 강제로 종료하시겠습니까? (미응답자는 오답처리)')) socket.emit('adminForceRoundEnd')" style="background:#f39c12; display:none; margin-top:5px;">⏳ 라운드 강제 종료</button>
+                <button id="admin-force-end-btn" class="admin-btn" onclick="if(confirm('게임을 완전히 종료하고 결과창을 띄우시겠습니까?')) socket.emit('adminForceEnd')" style="background:#e17055; display:none; margin-top:5px;">⏹️ 게임 완전 종료</button>
+                <button id="admin-stop-btn" class="admin-btn" onclick="confirmReset()" style="background:#444; display:none; margin-top:5px;">🏠 대기실로</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "first-grade-math-tools",
+  "version": "1.0.0",
+  "description": "1학년 수학도구 - 업다운 & 1 to 50",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "math",
+    "education",
+    "socket.io",
+    "simple-game"
+  ],
+  "author": "Gemini & Hyung-nim",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}

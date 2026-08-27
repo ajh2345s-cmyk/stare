@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>수학의 계단</title>
+<style>
+  :root{--bg:#111827;--panel:#1f2937;--panel2:#273449;--text:#f9fafb;--muted:#aeb9c9;--accent:#f8c24e;--danger:#ef6a6a;--ok:#68d391;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif;color:var(--text)}
+  button{font:inherit;color:inherit;border:0;cursor:pointer}
+  #app{width:100%;height:100%;display:flex;justify-content:center;background:linear-gradient(#101827,#0c1220)}
+  #game{position:relative;width:min(100vw,520px);height:100dvh;overflow:hidden;background:linear-gradient(#92c6e8 0 42%,#7ca8c3 42% 100%);touch-action:none}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .hud{position:absolute;left:12px;right:12px;top:max(10px,env(safe-area-inset-top));z-index:10;display:flex;align-items:center;gap:10px;pointer-events:none}
+  .stat{background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);padding:8px 12px;border-radius:12px;min-width:92px;box-shadow:0 5px 12px rgba(0,0,0,.18)}
+  .stat small{display:block;font-size:11px;color:var(--muted)}
+  .stat strong{display:block;font-size:20px;line-height:1.05;margin-top:2px}
+  .hpWrap{flex:1;background:rgba(17,24,39,.75);border:2px solid rgba(255,255,255,.22);padding:5px 6px;border-radius:12px}
+  .hpBar{height:16px;border-radius:8px;overflow:hidden;background:#43262b}
+  #hpFill{height:100%;width:100%;background:linear-gradient(90deg,#7fe28e,#e9dd63);transition:width .08s linear}
+  .pause{pointer-events:auto;width:42px;height:42px;border-radius:12px;background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);font-size:19px}
+  .controls{position:absolute;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:12;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .control{height:78px;border-radius:18px;background:rgba(30,41,59,.92);border:3px solid rgba(255,255,255,.2);box-shadow:0 8px 18px rgba(0,0,0,.22);font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;gap:8px;user-select:none;touch-action:none}
+  .control:active{transform:translateY(3px);filter:brightness(1.12)}
+  .turnIcon{font-size:34px;line-height:1}
+  .screen{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,11,18,.64);backdrop-filter:blur(7px)}
+  .card{width:min(92%,430px);background:linear-gradient(180deg,#263448,#1b2535);border:3px solid rgba(255,255,255,.15);border-radius:24px;padding:26px;box-shadow:0 25px 55px rgba(0,0,0,.35);text-align:center}
+  h1{margin:0 0 7px;font-size:42px;letter-spacing:-1px}
+  .sub{color:var(--muted);margin-bottom:18px}
+  .chars{display:flex;justify-content:center;align-items:center;gap:18px;margin:16px 0 20px}
+  .arrow{width:52px;height:52px;border-radius:14px;background:#172133;border:2px solid rgba(255,255,255,.15);font-size:32px}
+  .preview{width:120px;height:120px;border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.04));display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.18);box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)}
+  .shape{position:relative}
+  .circle{width:64px;height:64px;border-radius:50%;background:var(--preview-color,#5cd7ff);border:5px solid #132233;box-shadow:inset 0 -7px 0 rgba(0,0,0,.13)}
+  .square{width:64px;height:64px;background:var(--preview-color,#ff8a65);border:5px solid #132233;box-shadow:inset 0 -7px 0 rgba(0,0,0,.13)}
+  .triangle{width:0;height:0;border-left:35px solid transparent;border-right:35px solid transparent;border-bottom:66px solid var(--preview-color,#9ef07b);filter:drop-shadow(0 0 0 #132233) drop-shadow(0 3px 0 #132233)}
+  .colorRow{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:-4px 0 16px}
+  .colorBtn{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.35);box-shadow:0 3px 8px rgba(0,0,0,.22);position:relative}
+  .colorBtn.selected{outline:3px solid #fff;outline-offset:2px}
+  .colorBtn::after{content:'';position:absolute;inset:6px;border-radius:50%;background:rgba(255,255,255,.18);opacity:.8}
+  .primary{width:100%;height:56px;border-radius:16px;background:var(--accent);color:#352600;font-size:20px;font-weight:1000}
+  .secondary{margin-top:9px;width:100%;height:46px;border-radius:14px;background:#334155;color:#e5e7eb;font-weight:800}
+  .mathTitle{font-size:16px;color:#d9e1ec;margin-bottom:6px}
+  .problem{font-size:48px;font-weight:1000;margin:8px 0 16px;color:#fff}
+  .answerRow{display:flex;gap:8px}
+  #answerInput{flex:1;height:54px;border-radius:14px;border:2px solid rgba(255,255,255,.15);background:#0f172a;color:#fff;text-align:center;font-size:28px;font-weight:900;outline:none;cursor:default}
+  .answerBtn{width:110px;height:54px;border-radius:14px;background:#78dca0;color:#133021;font-weight:1000}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .key{height:52px;border-radius:13px;background:#334155;border:2px solid rgba(255,255,255,.12);font-size:22px;font-weight:1000;user-select:none;touch-action:none}
+  .key:active{transform:translateY(2px);filter:brightness(1.12)}
+  .key.delete{background:#4b3a3f}
+  .key.enter{background:#78dca0;color:#133021}
+  .feedback{height:24px;margin-top:10px;font-weight:900}
+  .hidden{display:none !important}
+  .tip{margin-top:12px;color:#aeb9c9;font-size:13px;line-height:1.45}
+  @media (max-width:420px){h1{font-size:35px}.card{padding:20px}.control{height:72px;font-size:16px}.stat{min-width:80px;padding:7px 10px}.stat strong{font-size:18px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="game">
+    <canvas id="canvas"></canvas>
+
+    <div class="hud hidden" id="hud">
+      <div class="stat"><small>층</small><strong id="floorText">1</strong></div>
+      <div class="stat"><small>기록</small><strong id="bestText">0</strong></div>
+      <div class="hpWrap"><div class="hpBar"><div id="hpFill"></div></div></div>
+      <button class="pause" id="pauseBtn" aria-label="일시정지">Ⅱ</button>
+    </div>
+
+    <div class="controls hidden" id="controls">
+      <button class="control" id="turnBtn"><span class="turnIcon">↻</span><span>방향 전환</span></button>
+      <button class="control" id="upBtn"><span class="turnIcon">↑</span><span>오르기</span></button>
+    </div>
+
+    <div class="screen" id="startScreen">
+      <div class="card">
+        <h1>수학의 계단</h1>
+        <div class="sub">두 버튼으로 끝없이 계단을 올라가세요.</div>
+        <div style="font-weight:900;margin-top:4px">캐릭터 선택</div>
+        <div class="chars">
+          <button class="arrow" id="leftChar">‹</button>
+          <div class="preview" id="charPreview"></div>
+          <button class="arrow" id="rightChar">›</button>
+        </div>
+        <div id="charName" style="font-size:18px;font-weight:900;margin-bottom:10px">동그라미</div>
+        <div style="font-weight:900;margin-bottom:8px">캐릭터 색상</div>
+        <div class="colorRow" id="colorRow"></div>
+        <button class="primary" id="playBtn">GAME START</button>
+        <div class="tip">화살표 버튼은 방향을 바꾸면서 한 칸 올라갑니다.<br>오르기는 현재 방향으로 한 칸 올라갑니다.</div>
+      </div>
+    </div>
+
+    <div class="screen hidden" id="mathScreen">
+      <div class="card">
+        <div class="mathTitle">🎯 <span id="checkpointText">25층</span> 도착!</div>
+        <div style="font-size:14px;color:#9fb0c6">문제를 맞히면 그대로 계속 올라갑니다.</div>
+        <div class="mathTimerWrap">
+          <div class="mathTimerTop"><span>문제 제한시간</span><strong id="mathTimerText">7.0초</strong></div>
+          <div class="mathTimerTrack"><div class="mathTimerFill" id="mathTimerFill"></div></div>
+        </div>
+        <div class="problem" id="problemText">3 + 4 = ?</div>
+        <div class="answerRow">
+          <input id="answerInput" inputmode="none" autocomplete="off" readonly aria-label="정답 입력" />
+          <button class="answerBtn" id="answerBtn">정답</button>
+        </div>
+        <div class="keypad" id="keypad" aria-label="숫자 키패드">
+          <button class="key" data-key="1">1</button>
+          <button class="key" data-key="2">2</button>
+          <button class="key" data-key="3">3</button>
+          <button class="key" data-key="4">4</button>
+          <button class="key" data-key="5">5</button>
+          <button class="key" data-key="6">6</button>
+          <button class="key" data-key="7">7</button>
+          <button class="key" data-key="8">8</button>
+          <button class="key" data-key="9">9</button>
+          <button class="key delete" data-key="backspace">⌫</button>
+          <button class="key" data-key="0">0</button>
+          <button class="key enter" data-key="enter">↵</button>
+        </div>
+        <div class="feedback" id="feedback"></div>
+      </div>
+    </div>
+
+    <div class="screen hidden" id="gameOverScreen">
+      <div class="card">
+        <h1 style="font-size:36px">GAME OVER</h1>
+        <div class="sub">이번 기록</div>
+        <div style="font-size:52px;font-weight:1000;margin:8px 0 14px" id="resultFloor">0층</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px">
+          <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">최고 기록</small><div id="resultBest" style="font-size:24px;font-weight:1000">0층</div></div>
+          <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">획득 점수</small><div id="resultScore" style="font-size:24px;font-weight:1000">0</div></div>
+        </div>
+        <button class="primary" id="retryBtn">RETRY</button>
+      </div>
+    </div>
+
+    <div class="screen hidden" id="pauseScreen">
+      <div class="card">
+        <h1 style="font-size:34px">PAUSED</h1>
+        <button class="primary" id="resumeBtn">계속하기</button>
+        <button class="secondary" id="quitBtn">메인으로</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const game = document.getElementById('game');
+  const hud = document.getElementById('hud');
+  const controls = document.getElementById('controls');
+  const floorText = document.getElementById('floorText');
+  const bestText = document.getElementById('bestText');
+  const hpFill = document.getElementById('hpFill');
+  const startScreen = document.getElementById('startScreen');
+  const mathScreen = document.getElementById('mathScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const pauseScreen = document.getElementById('pauseScreen');
+  const charPreview = document.getElementById('charPreview');
+  const charName = document.getElementById('charName');
+  const colorRow = document.getElementById('colorRow');
+  const problemText = document.getElementById('problemText');
+  const answerInput = document.getElementById('answerInput');
+  const feedback = document.getElementById('feedback');
+  const keypad = document.getElementById('keypad');
+
+  const CHARACTERS = ['circle','square','triangle'];
+  const CHAR_NAMES = {circle:'동그라미', square:'네모', triangle:'세모'};
+  let selectedChar = 0;
+  const COLORS = [
+    {name:'파랑', fill:'#38bdf8'},
+    {name:'빨강', fill:'#fb7185'},
+    {name:'초록', fill:'#4ade80'},
+    {name:'노랑', fill:'#facc15'},
+    {name:'보라', fill:'#c084fc'},
+    {name:'주황', fill:'#fb923c'}
+  ];
+  let selectedColor = 0;
+
+  let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  let W=0,H=0;
+  function resize(){
+    const r=game.getBoundingClientRect();
+    W=r.width; H=r.height;
+    dpr=Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width=Math.floor(W*dpr); canvas.height=Math.floor(H*dpr);
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize',resize); resize();
+
+  let state='TITLE';
+  let paused=false;
+  let floor=1;
+  let best=Number(localStorage.getItem('mathStairsBest')||0);
+  let hp=100;
+  let score=0;
+  let facing=1; // 1 right, -1 left
+  let steps=[];
+  let player={x:0,y:0,targetX:0,targetY:0,anim:0,fromX:0,fromY:0};
+  let cameraX=0;
+  let cameraY=0;
+  const CAMERA_PLAYER_X = 0.50; // 캐릭터를 화면 가로 중앙에 고정
+  const CAMERA_PLAYER_Y = 0.43; // 캐릭터를 화면 중앙보다 약간 위에 고정
+  const PLAYER_DRAW_OFFSET_Y = 43;
+  let last=performance.now();
+  let actionLock=false;
+  let mathPending=false;
+  let currentProblem=null;
+  let mathTimeLeft=7.0;
+  const MATH_TIME_LIMIT=7.0;
+  let mathTimeoutHandled=false;
+  let visualFall=0;
+
+  // Gameplay constants tuned to the original feel, with original shapes/art.
+  const STAIR_W = 86;
+  const STAIR_H = 26;
+  const DX = 72;
+  const DY = 58;
+  const MAX_STEPS_AHEAD = 80;
+  const BASE_HP_DRAIN = 8.5; // 빠른 템포를 위한 초기 게이지 감소 속도
+
+  function show(el){el.classList.remove('hidden')}
+  function hide(el){el.classList.add('hidden')}
+
+  function renderColorChoices(){
+    colorRow.innerHTML='';
+    COLORS.forEach((c,i)=>{
+      const b=document.createElement('button');
+      b.className='colorBtn'+(i===selectedColor?' selected':'');
+      b.style.background=c.fill;
+      b.title=c.name; b.setAttribute('aria-label', c.name);
+      b.addEventListener('click',()=>{selectedColor=i; updateCharacterPreview();});
+      colorRow.appendChild(b);
+    });
+  }
+  function updateCharacterPreview(){
+    charPreview.innerHTML='';
+    const div=document.createElement('div');
+    div.className='shape '+CHARACTERS[selectedChar];
+    div.style.setProperty('--preview-color', COLORS[selectedColor].fill);
+    if(CHARACTERS[selectedChar]==='circle') div.style.background=COLORS[selectedColor].fill;
+    if(CHARACTERS[selectedChar]==='square') div.style.background=COLORS[selectedColor].fill;
+    if(CHARACTERS[selectedChar]==='triangle') div.style.borderBottomColor=COLORS[selectedColor].fill;
+    charPreview.appendChild(div);
+    charName.textContent=CHAR_NAMES[CHARACTERS[selectedChar]]+' · '+COLORS[selectedColor].name;
+    renderColorChoices();
+  }
+  document.getElementById('leftChar').addEventListener('click',()=>{
+    selectedChar=(selectedChar+CHARACTERS.length-1)%CHARACTERS.length; updateCharacterPreview();
+  });
+  document.getElementById('rightChar').addEventListener('click',()=>{
+    selectedChar=(selectedChar+1)%CHARACTERS.length; updateCharacterPreview();
+  });
+  updateCharacterPreview();
+
+  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+  // No direction arrows on stairs. Each stair is simply a connected platform.
+  function makeStep(i, prev){
+    let dir;
+    // 시작 2칸은 직진으로 익히게 하고, 3번째 계단부터는 완전 랜덤.
+    // 직진 = 이전 계단과 같은 방향으로 계속 전진.
+    if(i <= 2){
+      dir = 1;
+    } else {
+      dir = Math.random() < 0.5 ? 1 : -1;
+    }
+    return {
+      i,
+      x: prev.x + dir*DX,
+      y: prev.y - DY,
+      dir
+    };
+  }
+
+  function buildInitialStairs(){
+    steps=[];
+    steps.push({i:0,x:0,y:0,dir:0});
+    for(let i=1;i<MAX_STEPS_AHEAD;i++) steps.push(makeStep(i,steps[i-1]));
+    syncPlayerToStep(0);
+  }
+
+  function ensureStepsAhead(){
+    while(steps.length < floor + MAX_STEPS_AHEAD/2){
+      steps.push(makeStep(steps.length,steps[steps.length-1]));
+    }
+  }
+
+  function syncPlayerToStep(i){
+    const s=steps[Math.max(0,Math.min(i,steps.length-1))];
+    player.x=s.x; player.y=s.y; player.targetX=s.x; player.targetY=s.y; player.anim=0; player.fromX=s.x; player.fromY=s.y;
+  }
+
+  function startGame(){
+    state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
+    buildInitialStairs(); ensureStepsAhead();
+    // 게임 시작 즉시 카메라를 캐릭터에 맞춘다. 첫 프레임부터 캐릭터가 보이게 한다.
+    snapCameraToPlayer();
+    startScreen.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
+    hud.classList.remove('hidden'); controls.classList.remove('hidden');
+    updateHUD();
+  }
+
+  function updateHUD(){
+    floorText.textContent=floor;
+    bestText.textContent=best;
+    hpFill.style.width=Math.max(0,hp)+'%';
+  }
+
+  function levelDrainPerSec(){
+    // Gradual speed-up. It accelerates smoothly rather than becoming impossible abruptly.
+    // 초반부터 느슨하지 않게 시작하고, 층수가 높아질수록 지속적으로 빨라진다.
+    return BASE_HP_DRAIN + Math.min(9.5, floor*0.045);
+  }
+
+  function regenPerStep(){
+    return Math.max(6.0, 7.2 - Math.min(1.2,floor*0.004));
+  }
+
+  function isCorrectDestination(next, movementDir){
+    const dx = next.x - player.x;
+    return (movementDir>0 && dx>0) || (movementDir<0 && dx<0);
+  }
+
+  function performAction(turn){
+    if(state!=='PLAYING' || paused || mathPending || actionLock) return;
+    ensureStepsAhead();
+    const next = steps[floor];
+    const moveDir = turn ? -facing : facing;
+    if(turn) facing *= -1;
+    actionLock=true;
+    player.fromX=player.x; player.fromY=player.y;
+    player.targetX=next.x; player.targetY=next.y;
+    player.anim=0;
+    if(!isCorrectDestination(next,moveDir)){
+      // Step off the staircase and fall.
+      visualFall=1;
+      setTimeout(()=>gameOver(),260);
+      return;
+    }
+    // successful climb
+    floor++;
+    score++;
+    hp=Math.min(100,hp+regenPerStep());
+    ensureStepsAhead();
+    if(floor>best){ best=floor; localStorage.setItem('mathStairsBest',String(best)); }
+    updateHUD();
+    setTimeout(()=>{
+      actionLock=false;
+      if(floor%25===0) openMath();
+    },120);
+  }
+
+  function randomMath(){
+    const usePlus=Math.random()<0.55;
+    if(usePlus){
+      const a=randInt(0,10);
+      const b=randInt(0,10-a);
+      return {q:`${a} + ${b} = ?`,a:a+b};
+    } else {
+      const a=randInt(0,10);
+      const b=randInt(0,a);
+      return {q:`${a} − ${b} = ?`,a:a-b};
+    }
+  }
+
+  function openMath(){
+    mathPending=true; mathTimeLeft=MATH_TIME_LIMIT; mathTimeoutHandled=false; currentProblem=randomMath();
+    document.getElementById('checkpointText').textContent=floor+'층';
+    problemText.textContent=currentProblem.q;
+    feedback.textContent='';
+    answerInput.value='';
+    document.getElementById('mathTimerText').textContent=MATH_TIME_LIMIT.toFixed(1)+'초';
+    document.getElementById('mathTimerFill').style.width='100%';
+    document.getElementById('mathTimerFill').style.background='#facc15';
+    mathScreen.classList.remove('hidden');
+  }
+
+  function failMath(){
+    if(!mathPending || mathTimeoutHandled) return;
+    mathTimeoutHandled=true;
+    feedback.textContent='시간 초과! 15층 내려갑니다.'; feedback.style.color='var(--danger)';
+    answerInput.disabled=true;
+    const target=Math.max(1,floor-15);
+    setTimeout(()=>{
+      floor=target; score=target-1; hp=Math.max(hp,55);
+      syncPlayerToStep(floor-1);
+      ensureStepsAhead();
+      mathPending=false; mathScreen.classList.add('hidden'); answerInput.disabled=false; actionLock=false; visualFall=0; updateHUD();
+    },520);
+  }
+
+  function submitMath(){
+    if(!mathPending || mathTimeoutHandled) return;
+    const raw=answerInput.value.trim();
+    if(raw==='') return;
+    const n=Number(raw);
+    if(n===currentProblem.a){
+      mathTimeoutHandled=true;
+      feedback.textContent='정답! 계속 올라갑니다.'; feedback.style.color='var(--ok)';
+      setTimeout(()=>{ mathPending=false; mathScreen.classList.add('hidden'); feedback.textContent=''; actionLock=false; },420);
+    } else {
+      mathTimeoutHandled=true;
+      feedback.textContent='오답! 15층 내려갑니다.'; feedback.style.color='var(--danger)';
+      const target=Math.max(1,floor-15);
+      setTimeout(()=>{
+        floor=target; score=target-1; hp=Math.max(hp,55);
+        syncPlayerToStep(floor-1);
+        ensureStepsAhead();
+        mathPending=false; mathScreen.classList.add('hidden'); actionLock=false; visualFall=0; updateHUD();
+      },520);
+    }
+  }
+
+  document.getElementById('playBtn').addEventListener('click',startGame);
+  document.getElementById('retryBtn').addEventListener('click',startGame);
+  document.getElementById('answerBtn').addEventListener('click',submitMath);
+  answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
+
+  function keypadPress(key){
+    if(!mathPending || mathTimeoutHandled || answerInput.disabled) return;
+    if(key==='backspace'){
+      answerInput.value=answerInput.value.slice(0,-1);
+      return;
+    }
+    if(key==='enter'){
+      submitMath();
+      return;
+    }
+    if(/^[0-9]$/.test(key)){
+      // 정답은 한 자리 숫자이므로 불필요한 앞자리 0과 과도한 입력을 제한한다.
+      if(answerInput.value.length>=2) return;
+      if(answerInput.value==='0') answerInput.value='';
+      answerInput.value += key;
+    }
+  }
+
+  keypad.querySelectorAll('.key').forEach(btn=>{
+    const press=(e)=>{ e.preventDefault(); keypadPress(btn.dataset.key); };
+    btn.addEventListener('pointerdown',press,{passive:false});
+  });
+  document.getElementById('pauseBtn').addEventListener('click',()=>{
+    if(state!=='PLAYING' || mathPending) return;
+    paused=true; pauseScreen.classList.remove('hidden');
+  });
+  document.getElementById('resumeBtn').addEventListener('click',()=>{paused=false; pauseScreen.classList.add('hidden');});
+  document.getElementById('quitBtn').addEventListener('click',()=>{paused=false; state='TITLE'; hud.classList.add('hidden'); controls.classList.add('hidden'); pauseScreen.classList.add('hidden'); startScreen.classList.remove('hidden');});
+
+  function bindPress(btn, fn){
+    const press=(e)=>{ e.preventDefault(); fn(); };
+    btn.addEventListener('pointerdown',press,{passive:false});
+  }
+  bindPress(document.getElementById('turnBtn'),()=>performAction(true));
+  bindPress(document.getElementById('upBtn'),()=>performAction(false));
+
+  window.addEventListener('keydown',e=>{
+    if(state!=='PLAYING' || paused || mathPending) return;
+    if(['ArrowLeft','a','A','x','X'].includes(e.key)) { e.preventDefault(); performAction(true); }
+    if(['ArrowRight','d','D','z','Z',' '].includes(e.key)) { e.preventDefault(); performAction(false); }
+  });
+
+  function gameOver(){
+    state='GAMEOVER'; mathPending=false; hud.classList.add('hidden'); controls.classList.add('hidden');
+    document.getElementById('resultFloor').textContent=floor+'층';
+    document.getElementById('resultBest').textContent=best+'층';
+    document.getElementById('resultScore').textContent=score;
+    gameOverScreen.classList.remove('hidden');
+    visualFall=0;
+  }
+
+  function drawBackground(){
+    const grad=ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'#b4ddf5'); grad.addColorStop(.55,'#8fc1df'); grad.addColorStop(1,'#6c8ca8');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+    // simple distant city blocks for visual depth
+    const base=H*0.48 + 30;
+    for(let i=0;i<15;i++){
+      const bw=50+((i*37)%55); const bh=40+((i*59)%105); const x=i*45-((cameraY/6)%45);
+      ctx.fillStyle='rgba(255,255,255,.16)'; ctx.fillRect(x,base-bh,bw,bh);
+      for(let yy=base-bh+12; yy<base-12; yy+=17){
+        for(let xx=x+8; xx<x+bw-8; xx+=18){
+          ctx.fillStyle='rgba(80,120,150,.22)'; ctx.fillRect(xx,yy,9,7);
+        }
+      }
+    }
+  }
+
+  function worldToScreen(x,y){
+    return {x:W*CAMERA_PLAYER_X + (x-cameraX), y:H*0.58 + (y-cameraY)};
+  }
+
+  function getPlayerRenderWorldX(){
+    let wx = player.x;
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      const e = t * t * (3 - 2 * t);
+      wx = player.fromX + (player.targetX - player.fromX) * e;
+    }
+    return wx;
+  }
+
+  function getPlayerRenderWorldY(){
+    let wy = player.y;
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      const e = t * t * (3 - 2 * t);
+      wy = player.fromY + (player.targetY - player.fromY) * e;
+    }
+    return wy;
+  }
+
+  function cameraTargetX(){
+    // 캐릭터의 실제 가로 위치를 화면 중앙에 오도록 맞춘다.
+    return getPlayerRenderWorldX();
+  }
+
+  function cameraTargetY(){
+    // 캐릭터의 실제 화면상 중심이 CAMERA_PLAYER_Y 위치에 오도록 계산한다.
+    return getPlayerRenderWorldY() + H * (0.58 - CAMERA_PLAYER_Y) - PLAYER_DRAW_OFFSET_Y;
+  }
+
+  function snapCameraToPlayer(){
+    cameraX = cameraTargetX();
+    cameraY = cameraTargetY();
+  }
+
+  function drawStair(s){
+    const p=worldToScreen(s.x,s.y);
+    const left=p.x-STAIR_W/2;
+    const top=p.y;
+    // connected 2.5D-ish stair blocks; no arrows or labels.
+    ctx.fillStyle='#4a3a33';
+    ctx.fillRect(left+5,top+10,STAIR_W,STAIR_H);
+    ctx.fillStyle='#9d765b';
+    ctx.fillRect(left,top,STAIR_W,STAIR_H);
+    ctx.fillStyle='#c19677';
+    ctx.fillRect(left,top,STAIR_W,7);
+    ctx.fillStyle='rgba(40,28,20,.28)';
+    ctx.fillRect(left+10,top+12,STAIR_W-20,5);
+  }
+
+  function drawPlayer(){
+    // 캐릭터의 '발 위치'를 월드 좌표로 잡고, 항상 계단 위에 보이도록 렌더링한다.
+    let wx = player.x;
+    let wy = player.y;
+
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      const e = t * t * (3 - 2 * t);
+      wx = player.fromX + (player.targetX - player.fromX) * e;
+      wy = player.fromY + (player.targetY - player.fromY) * e;
+    }
+
+    let p = worldToScreen(wx, wy);
+    let x = p.x;
+    let y = p.y - PLAYER_DRAW_OFFSET_Y;
+
+    // 올라가는 순간 살짝 튀는 바운스
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      y -= Math.sin(Math.PI * t) * 10;
+    }
+
+    // 추락 연출
+    if(visualFall){
+      const f = Math.max(0, Math.min(1, visualFall));
+      y += f * f * 90;
+      x += (facing > 0 ? 1 : -1) * f * 45;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((facing > 0 ? 1 : -1) * f * 0.8);
+      drawCharacterShape(CHARACTERS[selectedChar], true);
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
+    // High-contrast outline so the character is always visible against any stair/background.
+    ctx.shadowColor='rgba(255,255,255,.78)';
+    ctx.shadowBlur=10;
+    drawCharacterShape(CHARACTERS[selectedChar], false);
+    ctx.shadowColor='transparent';
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+
+  function drawCharacterShape(kind, falling){
+    // 그림자가 먼저 표시되어 계단 위에서 캐릭터가 떠 보이지 않도록 한다.
+    ctx.fillStyle='rgba(0,0,0,.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 32, 27, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if(kind==='circle'){
+      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.beginPath();
+      ctx.arc(0,0,25,0,Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-7,4,0,Math.PI*2);
+      ctx.fill();
+    }else if(kind==='square'){
+      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.fillRect(-25,-25,50,50);
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.strokeRect(-25,-25,50,50);
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.strokeRect(-25,-25,50,50);
+      ctx.fillStyle='#132233';
+      ctx.fillRect(9,-8,6,6);
+    }else{
+      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.beginPath();
+      ctx.moveTo(0,-31);
+      ctx.lineTo(-31,25);
+      ctx.lineTo(31,25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-4,4,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    // 앞을 바라보는 방향이 직관적으로 보이도록 작은 표시를 추가
+    ctx.fillStyle='rgba(255,255,255,.82)';
+    ctx.beginPath();
+    ctx.arc(18, 14, 4, 0, Math.PI*2);
+    ctx.fill();
+
+    if(falling){
+      ctx.globalAlpha=.25;
+      ctx.strokeStyle='#fff';
+      ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.moveTo(-28,-35); ctx.lineTo(-38,-48);
+      ctx.moveTo(28,-28); ctx.lineTo(38,-42);
+      ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H); drawBackground();
+    const targetX = cameraTargetX();
+    const targetY = cameraTargetY();
+    // 카메라는 캐릭터의 상하좌우 실제 위치를 모두 따라간다.
+    // 이동 중에는 조금 빠르게, 정지 중에는 안정적으로 유지한다.
+    const cameraLerp = player.anim < 1 ? 0.28 : 0.18;
+    cameraX += (targetX-cameraX)*cameraLerp;
+    cameraY += (targetY-cameraY)*cameraLerp;
+    // visible stair range
+    for(const s of steps){
+      const sy=worldToScreen(s.x,s.y).y;
+      if(sy>-100 && sy<H+100) drawStair(s);
+    }
+    if(state!=='TITLE') drawPlayer();
+    if(state==='PLAYING' && !paused && !mathPending){
+      const vign=ctx.createLinearGradient(0,0,0,H); vign.addColorStop(0,'rgba(0,0,0,.03)'); vign.addColorStop(.75,'rgba(0,0,0,.02)'); vign.addColorStop(1,'rgba(0,0,0,.12)'); ctx.fillStyle=vign; ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  function update(now){
+    const dt=Math.min(.05,(now-last)/1000); last=now;
+    if(state==='PLAYING' && !paused){
+      if(mathPending){
+        mathTimeLeft=Math.max(0, mathTimeLeft-dt);
+        const ratio=mathTimeLeft/MATH_TIME_LIMIT;
+        document.getElementById('mathTimerText').textContent=mathTimeLeft.toFixed(1)+'초';
+        const fill=document.getElementById('mathTimerFill');
+        fill.style.width=(ratio*100)+'%';
+        fill.style.background=ratio<=0.3 ? '#fb7185' : (ratio<=0.55 ? '#fb923c' : '#facc15');
+        if(mathTimeLeft<=0) failMath();
+      } else {
+        hp -= levelDrainPerSec()*dt;
+        if(hp<=0){hp=0; updateHUD(); gameOver();}
+        updateHUD();
+        if(player.anim<1 && player.targetY!==player.y){ player.anim=Math.min(1,player.anim + dt/0.12); if(player.anim>=1){player.x=player.targetX; player.y=player.targetY;} }
+        if(visualFall){ visualFall=Math.min(1,visualFall+dt*2.7); }
+      }
+    }
+    render(); requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+})();
+</script>
+</body>
+</html>

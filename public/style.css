@@ -1,0 +1,207 @@
+/* ========================================= */
+/* [기본 설정 및 레이아웃] */
+/* ========================================= */
+body { margin: 0; background: #f0f2f5; color: #333; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+ul, li { list-style: none !important; padding: 0; margin: 0; }
+.no-select { user-select: none; -webkit-user-select: none; touch-action: none; }
+
+#game-area { flex: 1; position: relative; width: 100%; height: 100%; background: #dfe6e9; overflow: hidden; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+#game-title-badge { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #0984e3; padding: 8px 20px; border-radius: 20px; font-size: 16px; font-weight: bold; color: #fff; z-index: 6000; pointer-events: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+.big-msg { font-size: 24px; font-weight: 900; color: #333; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); background: rgba(255,255,255,0.7); padding: 10px 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; }
+
+/* [대기실] */
+#lobby-view { width: 100%; height: 100%; overflow-y: auto; padding: 20px; box-sizing: border-box; display: flex; justify-content: center; align-items: flex-start; padding-top: 60px; }
+#lobby-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; width: 100%; max-width: 800px; }
+.lobby-card { background: #fff; border-radius: 10px; padding: 15px 5px; text-align: center; font-weight: bold; color: #2d3436; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 2px solid #fff; transition: 0.3s; }
+.lobby-card.admin { border-color: #0984e3; color: #0984e3; }
+.lobby-card.me { background: #ffeaa7; border-color: #fdcb6e; }
+
+/* [모달 및 팝업] */
+#modal-layer, #qr-modal, #settings-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 20000; display: none; background: #fff; color: #000; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); padding: 20px; text-align: center; border: 3px solid #0984e3; transition: all 0.3s ease; }
+/* [수정됨] 결과창 내부 스크롤 기능 및 기기 대응 제한 수치 지정 */
+#modal-layer { max-height: 80vh; max-height: 80dvh; overflow-y: auto; width: 90%; max-width: 450px; box-sizing: border-box; }
+#settings-modal { width: 80%; max-width: 400px; text-align: left; }
+.settings-content h3 { text-align: center; margin-top: 0; color: #0984e3; }
+.setting-group { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+.setting-group h4 { margin: 0 0 5px 0; font-size: 14px; color: #555; }
+.save-btn { width: 48%; padding: 10px; background: #0984e3; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+.cancel-btn { width: 48%; padding: 10px; background: #636e72; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+.manual-close, .close-result-btn { width: 100%; padding: 10px; background: #2d3436; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+#countdown-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 30000; display: flex; justify-content: center; align-items: center; color: #fff; font-size: 120px; font-weight: 900; text-shadow: 0 0 20px #0984e3; }
+
+#qr-code-display.qr-fullscreen { position: fixed !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; width: 80vmin !important; height: 80vmin !important; background: white !important; padding: 20px !important; border-radius: 20px !important; box-shadow: 0 0 0 9999px rgba(0,0,0,0.85) !important; z-index: 999999 !important; display: flex !important; justify-content: center !important; align-items: center !important; margin: 0 !important; }
+#qr-code-display.qr-fullscreen img, #qr-code-display.qr-fullscreen canvas { width: 100% !important; height: 100% !important; object-fit: contain; }
+
+/* [랭킹 및 현황판] */
+#live-rank { position: fixed; top: 10px; left: 10px; width: 180px; max-height: 40vh; background: rgba(0,0,0,0.85); border-radius: 8px; padding: 10px; color: #fff; font-size: 13px; display: none; z-index: 10000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: all 0.3s ease; }
+.rank-header { font-weight: bold; border-bottom: 1px solid #777; margin-bottom: 5px; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center; color: #f1c40f; gap: 10px; }
+#rank-toggle-btn { background: #444; border: 1px solid #777; color: #fff; font-size: 10px; cursor: pointer; border-radius: 3px; padding: 2px 5px; }
+#rank-content { max-height: calc(40vh - 45px); overflow-y: auto; padding-right: 5px; }
+#rank-content::-webkit-scrollbar { width: 4px; }
+#rank-content::-webkit-scrollbar-thumb { background: #74b9ff; border-radius: 2px; }
+#live-rank.collapsed { width: auto; min-width: 0; height: auto; max-height: none; padding: 5px; border-radius: 5px; background: rgba(0,0,0,0.6); }
+#live-rank.collapsed .rank-header { border: none; margin: 0; padding: 0; }
+#live-rank.collapsed #rank-title, #live-rank.collapsed #rank-content { display: none; } 
+#status-panel { position: fixed; top: 10px; left: 210px; display: none; background: rgba(0,0,0,0.85); border-radius: 8px; padding: 8px; z-index: 10000; max-height: 40vh; overflow-y: auto; color: #fff; min-width: 120px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+.bond-stat-row { font-size: 11px; margin-bottom: 4px; line-height: 1.4; }
+.bond-stat-row.correct { color: #55efc4; font-weight: bold; }
+.bond-stat-row.wrong { color: #ff7675; }
+.bond-stat-row.yet { color: #b2bec3; }
+
+/* [공통 키패드] */
+#updown-keypad, #bond-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 100%; max-width: 300px; margin: 0 auto; }
+.mem-key { background: #636e72; border: none; color: #fff; font-size: 18px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 2px #2d3436; height: 40px; }
+.mem-submit { background: #0984e3; box-shadow: 0 2px #0056b3; font-size: 16px; }
+.mem-del { background: #d63031; box-shadow: 0 2px #a10e25; }
+
+/* [업다운 게임] */
+#updown-game-area { width: 100%; height: 100%; display: none; background: #2d3436; position: absolute; top: 0; left: 0; z-index: 2000; padding: 60px 10px 10px 10px; box-sizing: border-box; gap: 5px; flex-direction: row; align-items: center; justify-content: center; }
+#updown-left-col { flex: 6; display: flex; flex-direction: column; justify-content: center; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 5px; height: auto; }
+#updown-right-col { flex: 4; background: rgba(255,255,255,0.05); border-radius: 10px; padding: 5px; display: flex; flex-direction: column; height: auto; max-height: 250px; }
+#updown-feedback { font-size: 36px; font-weight: 900; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); text-align: center; line-height: 1.2; margin-bottom: 5px; min-height: 40px; color: #fff; display: flex; justify-content: center; align-items: center; }
+.ud-up { color: #ff7675; } .ud-down { color: #74b9ff; } .ud-correct { color: #55efc4; }
+#updown-display { width: 100%; max-width: 300px; margin: 0 auto 5px auto; height: 40px; border: 3px solid #fff; border-radius: 10px; background: rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; font-size: 28px; font-weight: 900; color: #f1c40f; }
+#updown-history { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; max-height: 300px; }
+.ud-hist-item { font-size: 12px; font-weight: bold; display: flex; justify-content: space-between; padding: 5px 8px; background: rgba(0,0,0,0.4); border-radius: 4px; color: #fff; }
+
+/* [1to50] */
+#fifty-game-area { width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; background: #2d3436; position: absolute; top: 0; left: 0; z-index: 2000; padding-top: 50px; }
+#fifty-timer-display { font-size: 28px; font-weight: 900; color: #55efc4; margin-bottom: 10px; font-family: 'Courier New', Courier, monospace; text-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
+#fifty-info { font-size: 24px; font-weight: bold; color: #ffffff; margin-bottom: 20px; text-shadow: 2px 2px 4px #000000; }
+#fifty-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 10px; width: 320px; height: 320px; background: #4a4a4a; padding: 10px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+.fifty-cell { background: #b2bec3; border-radius: 8px; display: flex; justify-content: center; align-items: center; font-size: 28px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px #000; cursor: pointer; box-shadow: 0 4px 0 rgba(0,0,0,0.2); user-select: none; transition: transform 0.1s, filter 0.1s; }
+.fifty-cell.placeholder { background: #636e72; box-shadow: inset 0 2px 5px rgba(0,0,0,0.2); cursor: default; }
+.fifty-cell.empty { background: transparent !important; cursor: default; color: transparent; box-shadow: none; pointer-events: none; }
+
+/* 1to50 힌트 애니메이션 */
+@keyframes hintBlink {
+    0% { transform: scale(1); box-shadow: 0 4px 0 rgba(0,0,0,0.2); filter: brightness(1); border: none; }
+    50% { transform: scale(1.15); box-shadow: 0 0 20px #f1c40f; filter: brightness(1.4); border: 4px solid #f1c40f; border-radius: 12px; }
+    100% { transform: scale(1); box-shadow: 0 4px 0 rgba(0,0,0,0.2); filter: brightness(1); border: none; }
+}
+.hint-blink {
+    animation: hintBlink 0.6s infinite !important;
+    z-index: 10;
+    position: relative;
+}
+
+/* [가르기 모으기] */
+#bond-game-area { width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; background: #6c5ce7; position: absolute; top: 0; left: 0; z-index: 2000; padding-top: 50px; gap: 10px; }
+#bond-visual-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; }
+#bond-msg { height: 40px; line-height: 40px; font-size: 24px; font-weight: 900; color: #fff; text-shadow: 2px 2px 4px #000; margin-bottom: 10px; padding: 0 25px; border-radius: 20px; text-align: center; z-index: 10; transition: 0.2s; }
+#bond-visual { position: relative; width: 100%; max-width: 400px; height: 260px; display: flex; justify-content: center; align-items: flex-start; margin-bottom: 10px; }
+.bond-circle { min-width: 60px; min-height: 60px; width: fit-content; height: fit-content; border-radius: 20px; background: #fff; border: 4px solid #a29bfe; display: flex; justify-content: center; align-items: center; font-size: 32px; font-weight: 900; color: #2d3436; position: absolute; z-index: 1; box-shadow: 0 4px rgba(0,0,0,0.2); padding: 10px; box-sizing: border-box; }
+.bond-circle.top { top: 10px; left: 50%; transform: translateX(-50%); }
+.bond-circle.bottom { top: 160px; }
+#bond-left { left: 25%; transform: translateX(-50%); }
+#bond-right { left: 75%; transform: translateX(-50%); }
+.bond-circle.question { background: #ffeaa7; border-color: #fdcb6e; color: #e17055; animation: pulse 1s infinite alternate; }
+@keyframes pulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.05); } }
+.dots-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.dot { width: 14px; height: 14px; background: #2d3436; border-radius: 50%; box-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+#bond-input-area { width: 100%; max-width: 300px; z-index: 2; padding: 0 10px; box-sizing: border-box; }
+#bond-display { width: 100%; height: 50px; background: rgba(0,0,0,0.3); border: 2px solid #fff; border-radius: 8px; margin-bottom: 5px; display: flex; justify-content: center; align-items: center; font-size: 30px; font-weight: bold; color: #ffeaa7; }
+
+/* [늑대 찾기] */
+#wolf-game-area { background: #a2d2a2; position: absolute; top:0; left:0; width:100%; height:100%; z-index: 2000; justify-content: center; padding-top: 40px; box-sizing: border-box;}
+#wolf-stage { width: 95%; max-width: 600px; height: 350px; border: 5px solid #666; border-radius: 20px; background: #81b981; position: relative; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+.animal { width: 80px; height: 80px; font-size: 60px; position: absolute; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; transition: transform 0.1s; }
+.animal:active { transform: scale(0.8); }
+
+/* [깜빡 퀴즈] */
+#missing-game-area { background: radial-gradient(circle, #fff 0%, #e0e0e0 100%); position: absolute; top:0; left:0; width:100%; height:100%; z-index: 2000; padding-top: 40px; box-sizing: border-box;}
+#missing-emoji-display { font-size: 200px; line-height: 1; transition: transform 0.2s; }
+.options-group { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; max-width: 600px; }
+.option-btn { background: white; border: 5px solid #4a90e2; border-radius: 20px; cursor: pointer; box-shadow: 0 6px 0 #ccc; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; width: 130px; height: 150px; }
+.option-btn:active { transform: translateY(6px); box-shadow: none; }
+.option-btn.wrong { border-color: #ff4757; background: #ffebeb; }
+.option-number { position: absolute; font-weight: 900; color: #4a90e2; background-color: #eef2f5; border-radius: 50%; font-size: 20px; width: 30px; height: 30px; top: 5px; display: flex; align-items: center; justify-content: center; }
+.option-btn.wrong .option-number { color: #ff4757; background-color: #ffd1d1; }
+.option-emoji { font-size: 80px; line-height: 1; margin-top: 15px; }
+@keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.pop-effect { animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+/* [기억력 게임] */
+#memory-game-area { background: #81ecec; position: absolute; top:0; left:0; width:100%; height:100%; z-index: 2000; justify-content: center; padding-top: 40px; box-sizing: border-box;}
+#memory-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, 1fr); gap: 10px; max-width: 400px; width: 90%; height: 50vh; }
+.mem-box { background-color: #000; border: 3px solid #333; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: bold; color: #fff; cursor: pointer; position: relative; transition: background-color 0.2s, border-color 0.2s; }
+.mem-box.active, .mem-box.show-heart, .mem-box.preview-white { background-color: #fff; border-color: #ccc; }
+.mem-heart { font-size: 60px; position: absolute; opacity: 0; pointer-events: none;}
+.mem-box.show-heart .mem-heart { opacity: 1; }
+.mem-box.show-heart .mem-num, .mem-box.preview-white .mem-num { opacity: 0; }
+.mem-box.incorrect { animation: shake 0.5s; background-color: #ff4757; border-color: #cc0000; color: white; }
+
+/* [관리자 패널] */
+.admin-setting-grid { display: grid; grid-template-columns: 60px 1fr; gap: 6px 10px; align-items: center; color: #fff; font-size: 11px; margin-top: 10px; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; }
+.admin-setting-grid label { text-align: right; font-weight: bold; }
+.admin-setting-grid input, .admin-setting-grid select { width: 100%; padding: 4px; box-sizing: border-box; border-radius: 4px; border: none; font-size: 11px; }
+
+#admin-panel { position: absolute; top: 10px; right: 10px; display: none; flex-direction: column; gap: 10px; z-index: 30000; }
+.admin-box { background: rgba(0,0,0,0.9); padding: 10px; border: 1px solid #74b9ff; border-radius: 8px; width: 140px; }
+.admin-label { font-size: 12px; font-weight: bold; color: #74b9ff; text-align: center; border-bottom: 1px solid #555; margin-bottom: 5px; cursor: pointer; display: flex; justify-content: space-between; }
+.admin-btn { width: 100%; padding: 8px; margin-bottom: 3px; cursor: pointer; color: #fff; border: none; font-size: 11px; border-radius: 4px; font-weight: bold; background: #636e72; }
+.kick-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #fff; margin-bottom: 5px; padding-bottom: 2px; border-bottom: 1px solid #444; }
+.x-btn { background: #e17055; border: none; color: white; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-weight: bold; display: flex; justify-content: center; align-items: center; margin-left: 5px; }
+
+#admin-user-list {
+    max-height: 140px; 
+    overflow-y: auto;
+    margin-top: 5px;
+    padding-right: 5px;
+}
+#admin-user-list::-webkit-scrollbar { width: 4px; }
+#admin-user-list::-webkit-scrollbar-thumb { background: #74b9ff; border-radius: 2px; }
+
+/* ========================================= */
+/* 📱 가로 모드 (Landscape) */
+/* ========================================= */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+    #game-title-badge { font-size: 11px; padding: 4px 10px; top: 2px; }
+    .big-msg { font-size: 14px; padding: 5px 10px; margin-bottom: 5px; border-radius: 8px; }
+    #admin-panel { top: 2px; right: 2px; transform: scale(0.85); transform-origin: top right; }
+    #updown-game-area { padding-top: 30px; }
+    #updown-display { height: 30px; font-size: 20px; margin-bottom: 2px; }
+    #updown-feedback { font-size: 24px; min-height: 30px; }
+    .mem-key { height: 30px; font-size: 14px; }
+    
+    #fifty-game-area { padding-top: 30px; }
+    #fifty-timer-display { font-size: 20px; margin-bottom: 5px; }
+    #fifty-grid { width: 220px; height: 220px; padding: 5px; gap: 5px; }
+    .fifty-cell { font-size: 20px; border-radius: 5px; }
+    #fifty-info { font-size: 16px; margin-bottom: 5px; }
+    
+    #bond-game-area { flex-direction: row !important; padding: 30px 10px 10px; align-items: center; justify-content: center; gap: 20px; }
+    #bond-visual-wrapper { width: 45%; max-width: 300px; }
+    #bond-input-area { width: 45%; max-width: 300px; padding: 0; }
+    #bond-visual { height: 160px; margin: 0; }
+    .bond-circle { min-width: 45px; min-height: 45px; font-size: 22px; padding: 5px; }
+    .bond-circle.bottom { top: 100px; }
+    #bond-display { height: 35px; font-size: 20px; margin-bottom: 5px; }
+    #wolf-game-area { padding-top: 30px; }
+    #wolf-stage { height: 180px; max-width: 450px; }
+    .animal { width: 40px; height: 40px; font-size: 30px; }
+    #missing-emoji-display { font-size: 100px; }
+    .option-btn { width: 80px; height: 90px; border-width: 3px; }
+    .option-emoji { font-size: 40px; margin-top: 10px; }
+    .option-number { width: 20px; height: 20px; font-size: 14px; top: 3px; }
+    #memory-grid { width: 95%; max-width: 500px; height: 60vh; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 5px; }
+    .mem-box { font-size: 24px; }
+    .mem-heart { font-size: 35px; }
+    #memory-target-display { font-size: 16px !important; margin-bottom: 5px !important; }
+    #memory-replay-btn { padding: 5px 10px !important; font-size: 12px !important; margin-bottom: 5px !important; }
+}
+
+/* ========================================= */
+/* 📱 세로 모드 (Portrait) */
+/* ========================================= */
+@media (max-width: 600px) {
+    #lobby-grid { grid-template-columns: repeat(3, 1fr); }
+    #updown-game-area { flex-direction: column !important; padding: 50px 5px 10px 5px; align-items: center; }
+    #updown-left-col, #updown-right-col { width: 100%; flex: none; }
+    #updown-history { max-height: 150px; }
+    #live-rank { left: 5px; max-width: 130px; }
+    #status-panel { left: auto; right: 5px; top: 50px; max-width: 100px; }
+    #missing-emoji-display { font-size: 120px; }
+    .mem-heart { font-size: 40px; }
+    #memory-target-display { font-size: 20px !important; }
+}
