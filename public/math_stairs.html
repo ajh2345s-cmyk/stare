@@ -16,7 +16,7 @@
   .stat{background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);padding:8px 12px;border-radius:12px;min-width:92px;box-shadow:0 5px 12px rgba(0,0,0,.18)}
   .stat small{display:block;font-size:11px;color:var(--muted)}
   .stat strong{display:block;font-size:20px;line-height:1.05;margin-top:2px}
-  .hpWrap{flex:1;background:rgba(17,24,39,.75);border:2px solid rgba(255,255,255,.22);padding:5px 6px;border-radius:12px}
+  .hpWrap{display:none}
   .hpBar{height:16px;border-radius:8px;overflow:hidden;background:#43262b}
   #hpFill{height:100%;width:100%;background:linear-gradient(90deg,#7fe28e,#e9dd63);transition:width .08s linear}
   .pause{pointer-events:auto;width:42px;height:42px;border-radius:12px;background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);font-size:19px}
@@ -217,6 +217,9 @@
   const MATH_TIME_LIMIT=7.0;
   let mathTimeoutHandled=false;
   let visualFall=0;
+  let mapSeed=1;
+  let remotePlayers=[];
+  let hostSelfId=null;
 
   // Gameplay constants tuned to the original feel, with original shapes/art.
   const STAIR_W = 86;
@@ -260,24 +263,22 @@
   });
   updateCharacterPreview();
 
-  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+  function hash32(n){
+    let x = (Number(n) >>> 0);
+    x ^= x >>> 16;
+    x = Math.imul(x, 0x7feb352d);
+    x ^= x >>> 15;
+    x = Math.imul(x, 0x846ca68b);
+    x ^= x >>> 16;
+    return x >>> 0;
+  }
 
-  // No direction arrows on stairs. Each stair is simply a connected platform.
+  function seeded01(key){ return hash32((mapSeed ^ key) >>> 0) / 4294967296; }
+
+  // 모든 학생이 같은 mapSeed를 사용하므로 같은 층에서는 같은 계단 모양을 본다.
   function makeStep(i, prev){
-    let dir;
-    // 시작 2칸은 직진으로 익히게 하고, 3번째 계단부터는 완전 랜덤.
-    // 직진 = 이전 계단과 같은 방향으로 계속 전진.
-    if(i <= 2){
-      dir = 1;
-    } else {
-      dir = Math.random() < 0.5 ? 1 : -1;
-    }
-    return {
-      i,
-      x: prev.x + dir*DX,
-      y: prev.y - DY,
-      dir
-    };
+    const dir = i <= 2 ? 1 : (seeded01(i * 2654435761) < 0.5 ? 1 : -1);
+    return { i, x: prev.x + dir*DX, y: prev.y - DY, dir };
   }
 
   function buildInitialStairs(){
@@ -300,11 +301,17 @@
 
   function notifyHost(type, payload={}){
     if(embeddedHost && window.parent && window.parent !== window){
-      window.parent.postMessage({source:'math-stairs', type, ...payload}, window.location.origin);
+      const enriched = {...payload};
+      if(type==='progress'){
+        enriched.character = CHARACTERS[selectedChar];
+        enriched.colorIndex = selectedColor;
+      }
+      window.parent.postMessage({source:'math-stairs', type, ...enriched}, window.location.origin);
     }
   }
 
-  function startGame(){
+  function startGame(seed){
+    if(seed !== undefined && seed !== null) mapSeed = Number(seed) >>> 0;
     state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
     buildInitialStairs(); ensureStepsAhead();
     // 게임 시작 즉시 카메라를 캐릭터에 맞춘다. 첫 프레임부터 캐릭터가 보이게 한다.
@@ -367,16 +374,20 @@
   }
 
   function randomMath(){
-    const usePlus=Math.random()<0.55;
+    // 체크포인트 층을 기반으로 결정적으로 생성하므로 모든 학생에게 같은 문제가 나온다.
+    const checkpoint = Math.floor(floor / 25);
+    const r1 = seeded01(checkpoint * 1009 + 11);
+    const r2 = seeded01(checkpoint * 1009 + 23);
+    const usePlus = r1 < 0.5;
     if(usePlus){
-      const a=randInt(0,10);
-      const b=randInt(0,10-a);
+      const a = 1 + Math.floor(r2 * 9);
+      const maxB = 10 - a;
+      const b = 1 + Math.floor(seeded01(checkpoint * 1009 + 37) * Math.max(1, maxB));
       return {q:`${a} + ${b} = ?`,a:a+b};
-    } else {
-      const a=randInt(0,10);
-      const b=randInt(0,a);
-      return {q:`${a} − ${b} = ?`,a:a-b};
     }
+    const a = 2 + Math.floor(r2 * 8);
+    const b = 1 + Math.floor(seeded01(checkpoint * 1009 + 37) * (a - 1));
+    return {q:`${a} − ${b} = ?`,a:a-b};
   }
 
   function openMath(){
@@ -557,6 +568,34 @@
     ctx.fillRect(left+10,top+12,STAIR_W-20,5);
   }
 
+  function getStepByFloor(f){
+    const idx = Math.max(0, Math.min(Number(f)-1, steps.length-1));
+    return steps[idx] || null;
+  }
+
+  function drawGhostPlayers(){
+    if(!Array.isArray(remotePlayers) || !remotePlayers.length || !steps.length) return;
+    for(const rp of remotePlayers){
+      if(rp.id === hostSelfId) continue;
+      const diff = Math.abs(Number(rp.floor || 1) - floor);
+      if(diff > 6 || rp.state === 'gameover') continue;
+      const st = getStepByFloor(rp.floor);
+      if(!st) continue;
+      const p = worldToScreen(st.x, st.y);
+      const x = p.x;
+      const y = p.y - PLAYER_DRAW_OFFSET_Y;
+      const alpha = 0.10;
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.globalAlpha=alpha;
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=4;
+      drawCharacterShape(rp.character || 'circle', false, rp.colorIndex ?? 0);
+      ctx.globalAlpha=0.0;
+      ctx.restore();
+    }
+  }
+
   function drawPlayer(){
     // 캐릭터의 '발 위치'를 월드 좌표로 잡고, 항상 계단 위에 보이도록 렌더링한다.
     let wx = player.x;
@@ -604,7 +643,7 @@
     ctx.restore();
   }
 
-  function drawCharacterShape(kind, falling){
+  function drawCharacterShape(kind, falling, colorIndex){
     // 그림자가 먼저 표시되어 계단 위에서 캐릭터가 떠 보이지 않도록 한다.
     ctx.fillStyle='rgba(0,0,0,.25)';
     ctx.beginPath();
@@ -612,7 +651,7 @@
     ctx.fill();
 
     if(kind==='circle'){
-      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.fillStyle=COLORS[colorIndex ?? selectedColor].fill;
       ctx.beginPath();
       ctx.arc(0,0,25,0,Math.PI*2);
       ctx.fill();
@@ -630,7 +669,7 @@
       ctx.arc(9,-7,4,0,Math.PI*2);
       ctx.fill();
     }else if(kind==='square'){
-      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.fillStyle=COLORS[colorIndex ?? selectedColor].fill;
       ctx.fillRect(-25,-25,50,50);
       ctx.strokeStyle='#ffffff';
       ctx.lineWidth=10;
@@ -641,7 +680,7 @@
       ctx.fillStyle='#132233';
       ctx.fillRect(9,-8,6,6);
     }else{
-      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.fillStyle=COLORS[colorIndex ?? selectedColor].fill;
       ctx.beginPath();
       ctx.moveTo(0,-31);
       ctx.lineTo(-31,25);
@@ -678,6 +717,33 @@
     }
   }
 
+  function drawPlayerGauge(){
+    if(state!=='PLAYING' || mathPending) return;
+    const x=W*CAMERA_PLAYER_X;
+    const y=H*CAMERA_PLAYER_Y - 72;
+    const width=Math.min(150, W*0.34);
+    const height=14;
+    ctx.save();
+    ctx.fillStyle='rgba(10,18,31,.72)';
+    ctx.strokeStyle='rgba(255,255,255,.78)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.roundRect(x-width/2-5, y-height/2-5, width+10, height+10, 9);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#3a1f27';
+    ctx.fillRect(x-width/2, y-height/2, width, height);
+    const ratio=Math.max(0,Math.min(1,hp/100));
+    const grad=ctx.createLinearGradient(x-width/2,y,x+width/2,y);
+    grad.addColorStop(0,'#72e58a'); grad.addColorStop(.7,'#f6df55'); grad.addColorStop(1,'#fb7185');
+    ctx.fillStyle=grad;
+    ctx.fillRect(x-width/2, y-height/2, width*ratio, height);
+    ctx.fillStyle='#fff';
+    ctx.font='900 11px system-ui';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(`시간 ${Math.ceil(hp)}%`, x, y);
+    ctx.restore();
+  }
+
   function render(){
     ctx.clearRect(0,0,W,H); drawBackground();
     const targetX = cameraTargetX();
@@ -692,7 +758,7 @@
       const sy=worldToScreen(s.x,s.y).y;
       if(sy>-100 && sy<H+100) drawStair(s);
     }
-    if(state!=='TITLE') drawPlayer();
+    if(state!=='TITLE'){ drawGhostPlayers(); drawPlayer(); drawPlayerGauge(); }
     if(state==='PLAYING' && !paused && !mathPending){
       const vign=ctx.createLinearGradient(0,0,0,H); vign.addColorStop(0,'rgba(0,0,0,.03)'); vign.addColorStop(.75,'rgba(0,0,0,.02)'); vign.addColorStop(1,'rgba(0,0,0,.12)'); ctx.fillStyle=vign; ctx.fillRect(0,0,W,H);
     }
@@ -751,12 +817,17 @@
     const d=event.data||{};
     if(d.source!=='math-stairs') return;
     if(d.type==='role'){
-      embeddedHost=true; hostIsAdmin=!!d.isAdmin; setAdminView();
-      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame();
+      embeddedHost=true; hostIsAdmin=!!d.isAdmin;
+      hostSelfId=d.selfId ?? hostSelfId;
+      if(d.mapSeed !== undefined && d.mapSeed !== null) mapSeed=Number(d.mapSeed)>>>0;
+      if(Array.isArray(d.remotePlayers)) remotePlayers=d.remotePlayers;
+      setAdminView();
+      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame(mapSeed);
       return;
     }
     if(!embeddedHost || hostIsAdmin) return;
-    if(d.type==='start'){ startGame(); return; }
+    if(d.type==='start'){ if(d.mapSeed !== undefined && d.mapSeed !== null) mapSeed=Number(d.mapSeed)>>>0; startGame(mapSeed); return; }
+    if(d.type==='players'){ remotePlayers=Array.isArray(d.players)?d.players:[]; return; }
     if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
   });
 

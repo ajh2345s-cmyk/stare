@@ -2,7 +2,8 @@ const socket = io(window.location.origin);
 const $ = id => document.getElementById(id);
 
 let myId, isAdmin = false, mode = 'LOBBY', players = {};
-let isGameRunning = false; 
+let isGameRunning = false;
+let mathStairsSeed = null; 
 
 let updownBuffer = ""; let updownLock = true;
 let fiftyTarget = 1; let fiftyPenalty = false; 
@@ -116,6 +117,7 @@ socket.on('initData', d => {
     try {
         safeDisplay('login-screen', 'none');
         myId = d.myId; isAdmin = d.isAdmin; mode = d.gameMode || 'LOBBY'; players = d.players || {};
+        mathStairsSeed = d.mathStairsSeed ?? mathStairsSeed;
         isStudentRankVisible = d.isStudentRankVisible ?? true; 
         
         const lockBtn = $('lock-btn');
@@ -251,6 +253,7 @@ socket.on('kicked', () => {
 
 socket.on('hardReset', d => {
     mode = d.mode || 'LOBBY'; players = d.players || {}; isGameRunning = false; studentDoneMap = {};
+    mathStairsSeed = null;
     safeText('updown-history', ''); updownBuffer = ""; safeText('updown-display', '0'); safeText('updown-feedback', 'START');
     bondBuffer = ""; isBondFinished = false; safeText('bond-display', ''); safeText('bond-msg', '');
     if($('fifty-grid')) $('fifty-grid').innerHTML = ''; 
@@ -274,7 +277,7 @@ socket.on('startCountdown', d => {
     const modal = $('countdown-modal'); if(!modal) return; modal.style.display = 'flex'; let count = d.seconds; modal.innerText = count;
     const interval = setInterval(() => {
         count--; if (count > 0) modal.innerText = count; 
-        else { modal.innerText = "시작!"; setTimeout(() => { modal.style.display = 'none'; clearInterval(interval); if(mode.includes('MATHSTAIRS')) notifyMathStairsFrame('start'); }, 500); }
+        else { modal.innerText = "시작!"; setTimeout(() => { modal.style.display = 'none'; clearInterval(interval); }, 500); }
     }, 1000);
 });
 
@@ -323,13 +326,18 @@ function closeQR() {
 function notifyMathStairsFrame(action) {
     const frame = $('math-stairs-frame');
     if (!frame || !frame.contentWindow) return;
-    frame.contentWindow.postMessage({ source:'math-stairs', type:'role', isAdmin, gameState: isGameRunning ? 'PLAYING' : 'WAITING' }, window.location.origin);
-    if (action) frame.contentWindow.postMessage({ source:'math-stairs', type: action }, window.location.origin);
-}
-
-const mathStairsFrame = $('math-stairs-frame');
-if (mathStairsFrame) {
-    mathStairsFrame.addEventListener('load', () => notifyMathStairsFrame());
+    frame.contentWindow.postMessage({
+        source:'math-stairs',
+        type:'role',
+        isAdmin,
+        gameState: isGameRunning ? 'PLAYING' : 'WAITING',
+        mapSeed: mathStairsSeed,
+        remotePlayers: window._mathStairsPlayers || [],
+        selfId: myId
+    }, window.location.origin);
+    if (action) {
+        frame.contentWindow.postMessage({ source:'math-stairs', type: action, mapSeed: mathStairsSeed }, window.location.origin);
+    }
 }
 
 window.addEventListener('message', (event) => {
@@ -343,6 +351,16 @@ window.addEventListener('message', (event) => {
     } else if (d.type === 'gameOver') {
         if (!isAdmin && mode.includes('MATHSTAIRS')) socket.emit('mathStairsGameOver', { floor:d.floor, score:d.score });
     }
+});
+
+socket.on('mathStairsStart', d => {
+    mathStairsSeed = d && d.mapSeed != null ? Number(d.mapSeed) >>> 0 : mathStairsSeed;
+    if (mode.includes('MATHSTAIRS') && !isAdmin) notifyMathStairsFrame('start');
+});
+
+socket.on('mathStairsPlayersUpdate', list => {
+    window._mathStairsPlayers = Array.isArray(list) ? list : [];
+    notifyMathStairsFrame();
 });
 
 socket.on('liveRankUpdate', r => { const c = $('rank-content'); if(c) c.innerHTML = r; });
