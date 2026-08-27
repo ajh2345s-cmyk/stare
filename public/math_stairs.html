@@ -210,6 +210,8 @@
   const CAMERA_PLAYER_Y = 0.43; // 캐릭터를 화면 중앙보다 약간 위에 고정
   const PLAYER_DRAW_OFFSET_Y = 43;
   let last=performance.now();
+  let gameSessionStarted=false;
+  let gameOverSent=false;
   let actionLock=false;
   let mathPending=false;
   let currentProblem=null;
@@ -487,8 +489,10 @@
   });
 
   function gameOver(){
-    notifyHost('gameOver', {floor, score});
-    state='GAMEOVER'; mathPending=false; hud.classList.add('hidden'); controls.classList.add('hidden');
+    if(state==='GAMEOVER' || state==='TITLE') return;
+    state='GAMEOVER';
+    gameSessionStarted=false;
+    if(!gameOverSent){ gameOverSent=true; notifyHost('gameOver', {floor, score}); } mathPending=false; hud.classList.add('hidden'); controls.classList.add('hidden');
     document.getElementById('resultFloor').textContent=floor+'층';
     document.getElementById('resultBest').textContent=best+'층';
     document.getElementById('resultScore').textContent=score;
@@ -827,7 +831,7 @@
     if(!embeddedHost || hostIsAdmin) return;
     if(d.type==='start'){ if(d.mapSeed !== undefined && d.mapSeed !== null) mapSeed=Number(d.mapSeed)>>>0; startGame(mapSeed); return; }
     if(d.type==='players'){ remotePlayers=Array.isArray(d.players)?d.players:[]; return; }
-    if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
+    if(d.type==='reset'){ gameSessionStarted=false; gameOverSent=false; state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; last=performance.now(); hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
   });
 
   if(window.parent && window.parent !== window){

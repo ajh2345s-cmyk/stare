@@ -32,8 +32,9 @@ module.exports = {
         const floor = Math.max(1, Number(data && data.floor) || 1);
         const score = Math.max(0, Number(data && data.score) || 0);
         // Client sends progress only; never let an accidental rollback reduce a student's visible rank.
-        const nextFloor = Math.max(prev.floor, floor);
-        const nextScore = Math.max(prev.score, score);
+        const isPenalty = data && data.state === 'penalty';
+        const nextFloor = isPenalty ? floor : Math.max(prev.floor, floor);
+        const nextScore = isPenalty ? score : Math.max(prev.score, score);
         store.data.mathStairsScores[socketId] = {
             floor: nextFloor,
             score: nextScore,

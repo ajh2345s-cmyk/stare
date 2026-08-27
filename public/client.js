@@ -130,7 +130,8 @@ socket.on('initData', d => {
         updateMemoryReadyDisplay(d.settings);
         updateUI();
         notifyMathStairsFrame();
-        if (mode.includes('MATHSTAIRS') && d.gameState === 'PLAYING' && !isAdmin) notifyMathStairsFrame('start');
+        // 수학의 계단은 서버의 mathStairsStart 신호로만 시작한다.
+        // initData의 PLAYING 상태를 보고 중복 시작시키지 않는다.
     } catch(e) { console.error(e); }
 });
 
@@ -172,7 +173,7 @@ function updateUI() {
 
         const visBtn = $('toggle-rank-vis-btn');
         if (visBtn) {
-            visBtn.innerText = isStudentRankVisible ? '👁️ 학생 화면 랭킹 숨기기' : '🙈 학생 화면 랭킹 보여주기';
+            visBtn.innerText = isStudentRankVisible ? '👁️ 학생 랭킹 보이는 중' : '🙈 학생 랭킹 안 보이는 중';
             visBtn.style.background = isStudentRankVisible ? '#8e44ad' : '#27ae60';
         }
 
