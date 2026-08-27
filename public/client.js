@@ -327,6 +327,11 @@ function notifyMathStairsFrame(action) {
     if (action) frame.contentWindow.postMessage({ source:'math-stairs', type: action }, window.location.origin);
 }
 
+const mathStairsFrame = $('math-stairs-frame');
+if (mathStairsFrame) {
+    mathStairsFrame.addEventListener('load', () => notifyMathStairsFrame());
+}
+
 window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin) return;
     const d = event.data || {};
