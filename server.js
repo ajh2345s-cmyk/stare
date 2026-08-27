@@ -5,6 +5,7 @@ const path = require('path');
 
 const store = require('./gameStore');
 const logic = require('./gameLogic');
+const mathStairs = require('./games/math_stairs');
 
 const app = express();
 const server = http.createServer(app);
@@ -78,7 +79,7 @@ io.on('connection', (socket) => {
                         store.adminId = socket.id;
                     }
 
-                    const dicts = ['updownScores', 'fiftyScores', 'fiftyFinishTimes', 'bondScores', 'bondStatus', 'wolfScores', 'wolfStatus', 'missingScores', 'missingStatus', 'memoryScores', 'memoryStatus'];
+                    const dicts = ['updownScores', 'fiftyScores', 'fiftyFinishTimes', 'bondScores', 'bondStatus', 'wolfScores', 'wolfStatus', 'missingScores', 'missingStatus', 'memoryScores', 'memoryStatus', 'mathStairsScores'];
                     dicts.forEach(dict => {
                         if (store.data[dict] && store.data[dict][oldId] !== undefined) {
                             store.data[dict][socket.id] = store.data[dict][oldId];
@@ -90,7 +91,7 @@ io.on('connection', (socket) => {
 
                     socket.emit('initData', { 
                         myId: socket.id, isAdmin: store.players[socket.id].isAdmin, 
-                        gameMode: safeGameMode, players: store.players, settings: store.settings, 
+                        gameMode: safeGameMode, gameState: store.gameState, players: store.players, settings: store.settings, 
                         isStudentRankVisible: store.data.isStudentRankVisible,
                         isLocked: !!store.data.isLocked
                     });
@@ -155,6 +156,8 @@ io.on('connection', (socket) => {
                     store.data.memoryScores[socket.id] = 0;
                     store.data.memoryStatus = store.data.memoryStatus || {};
                     store.data.memoryStatus[socket.id] = null;
+                    store.data.mathStairsScores = store.data.mathStairsScores || {};
+                    store.data.mathStairsScores[socket.id] = { floor: 1, score: 0, state: 'ready' };
                 }
 
                 const newToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -164,7 +167,7 @@ io.on('connection', (socket) => {
             
             socket.emit('initData', { 
                 myId: socket.id, isAdmin: store.players[socket.id].isAdmin, 
-                gameMode: safeGameMode, players: store.players, settings: store.settings, 
+                gameMode: safeGameMode, gameState: store.gameState, players: store.players, settings: store.settings, 
                 isStudentRankVisible: store.data.isStudentRankVisible,
                 isLocked: !!store.data.isLocked 
             });
@@ -271,6 +274,10 @@ io.on('connection', (socket) => {
     socket.on('wolfSubmit', (idx) => { try { require('./games/wolf').handleInput(store, logic, socket.id, idx); } catch(e) {} });
     socket.on('missingSubmit', (choice) => { try { require('./games/missing').handleInput(store, logic, socket.id, choice); } catch(e) {} });
     socket.on('memorySubmit', (action) => { try { require('./games/memory').handleInput(store, logic, socket.id, action); } catch(e) {} });
+
+
+    socket.on('mathStairsProgress', (data) => { try { mathStairs.handleProgress(store, socket.id, data); } catch(e) {} });
+    socket.on('mathStairsGameOver', (data) => { try { mathStairs.handleGameOver(store, socket.id, data); } catch(e) {} });
 
     socket.on('disconnect', () => { 
         try { 

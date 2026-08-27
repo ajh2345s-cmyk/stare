@@ -191,7 +191,7 @@
                 <button class="admin-btn mode-select-btn" style="background:#2ecc71; color:#fff;" onclick="req('WOLF_READY')">🐺 늑대를 찾아라</button>
                 <button class="admin-btn mode-select-btn" style="background:#e67e22; color:#fff;" onclick="req('MISSING_READY')">🕵️ 깜빡 퀴즈</button>
                 <button class="admin-btn mode-select-btn" style="background:#e84393; color:#fff;" onclick="req('MEMORY_READY')">🧠 기억력 게임</button>
-                <button class="admin-btn mode-select-btn" style="background:#6c5ce7; color:#fff;" onclick="window.location.href='math_stairs.html'">🪜 수학의 계단</button>
+                <button class="admin-btn mode-select-btn" style="background:#00b894; color:#fff;" onclick="req('MATHSTAIRS_READY')">🪜 수학의 계단</button>
 
                 <div id="setting-row-updown" style="display:none;">
                     <div class="admin-setting-grid"><label>최대 숫자</label><input type="number" id="updown-max-input" value="100" onchange="socket.emit('setUpdownMax', this.value)"></div>

@@ -205,3 +205,5 @@ ul, li { list-style: none !important; padding: 0; margin: 0; }
     .mem-heart { font-size: 40px; }
     #memory-target-display { font-size: 20px !important; }
 }
+#math-stairs-game-area{overflow:hidden;}
+#math-stairs-frame{background:#0b1220;}

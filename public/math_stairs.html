@@ -193,6 +193,8 @@
   }
   window.addEventListener('resize',resize); resize();
 
+  let embeddedHost = false;
+  let hostIsAdmin = false;
   let state='TITLE';
   let paused=false;
   let floor=1;
@@ -296,6 +298,12 @@
     player.x=s.x; player.y=s.y; player.targetX=s.x; player.targetY=s.y; player.anim=0; player.fromX=s.x; player.fromY=s.y;
   }
 
+  function notifyHost(type, payload={}){
+    if(embeddedHost && window.parent && window.parent !== window){
+      window.parent.postMessage({source:'math-stairs', type, ...payload}, window.location.origin);
+    }
+  }
+
   function startGame(){
     state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
     buildInitialStairs(); ensureStepsAhead();
@@ -304,6 +312,7 @@
     startScreen.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
     hud.classList.remove('hidden'); controls.classList.remove('hidden');
     updateHUD();
+    notifyHost('progress', {floor, score, state:'playing'});
   }
 
   function updateHUD(){
@@ -346,6 +355,7 @@
     // successful climb
     floor++;
     score++;
+    notifyHost('progress', {floor, score, state:'playing'});
     hp=Math.min(100,hp+regenPerStep());
     ensureStepsAhead();
     if(floor>best){ best=floor; localStorage.setItem('mathStairsBest',String(best)); }
@@ -388,7 +398,8 @@
     answerInput.disabled=true;
     const target=Math.max(1,floor-15);
     setTimeout(()=>{
-      floor=target; score=target-1; hp=Math.max(hp,55);
+      floor=target; score=Math.max(0, target-1); hp=Math.max(hp,55);
+      notifyHost('progress', {floor, score, state:'penalty'});
       syncPlayerToStep(floor-1);
       ensureStepsAhead();
       mathPending=false; mathScreen.classList.add('hidden'); answerInput.disabled=false; actionLock=false; visualFall=0; updateHUD();
@@ -409,7 +420,8 @@
       feedback.textContent='오답! 15층 내려갑니다.'; feedback.style.color='var(--danger)';
       const target=Math.max(1,floor-15);
       setTimeout(()=>{
-        floor=target; score=target-1; hp=Math.max(hp,55);
+        floor=target; score=Math.max(0, target-1); hp=Math.max(hp,55);
+      notifyHost('progress', {floor, score, state:'penalty'});
         syncPlayerToStep(floor-1);
         ensureStepsAhead();
         mathPending=false; mathScreen.classList.add('hidden'); actionLock=false; visualFall=0; updateHUD();
@@ -417,8 +429,8 @@
     }
   }
 
-  document.getElementById('playBtn').addEventListener('click',startGame);
-  document.getElementById('retryBtn').addEventListener('click',startGame);
+  document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
+  document.getElementById('retryBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
   document.getElementById('answerBtn').addEventListener('click',submitMath);
   answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
 
@@ -465,6 +477,7 @@
   });
 
   function gameOver(){
+    notifyHost('gameOver', {floor, score});
     state='GAMEOVER'; mathPending=false; hud.classList.add('hidden'); controls.classList.add('hidden');
     document.getElementById('resultFloor').textContent=floor+'층';
     document.getElementById('resultBest').textContent=best+'층';
@@ -706,6 +719,53 @@
     }
     render(); requestAnimationFrame(update);
   }
+
+  function setEmbeddedWaiting(){
+    if(!embeddedHost) return;
+    hud.classList.add('hidden');
+    controls.classList.add('hidden');
+    mathScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    pauseScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+    const btn=document.getElementById('playBtn');
+    if(btn){ btn.disabled=true; btn.textContent='선생님이 시작할 때까지 기다리세요'; btn.style.opacity='.65'; }
+    const tip=document.querySelector('.tip');
+    if(tip) tip.innerHTML='캐릭터와 색상을 선택한 뒤 선생님이 게임을 시작하면 자동으로 시작됩니다.';
+  }
+
+  function setAdminView(){
+    if(!embeddedHost) return;
+    if(hostIsAdmin){
+      startScreen.classList.remove('hidden');
+      const card=startScreen.querySelector('.card');
+      if(card){ card.innerHTML='<h1>수학의 계단</h1><div class="sub" style="margin-top:20px">선생님은 게임에 참여하지 않습니다.<br>학생들의 플레이와 랭킹을 확인하세요.</div>'; }
+      hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
+    } else {
+      setEmbeddedWaiting();
+    }
+  }
+
+  window.addEventListener('message', (event)=>{
+    if(event.origin !== window.location.origin) return;
+    const d=event.data||{};
+    if(d.source!=='math-stairs') return;
+    if(d.type==='role'){
+      embeddedHost=true; hostIsAdmin=!!d.isAdmin; setAdminView();
+      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame();
+      return;
+    }
+    if(!embeddedHost || hostIsAdmin) return;
+    if(d.type==='start'){ startGame(); return; }
+    if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
+  });
+
+  if(window.parent && window.parent !== window){
+    embeddedHost=true;
+    setEmbeddedWaiting();
+    notifyHost('ready');
+  }
+
   requestAnimationFrame(update);
 })();
 </script>

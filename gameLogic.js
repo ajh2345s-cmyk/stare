@@ -1,11 +1,12 @@
 const store = require('./gameStore'); 
-let gameUpdown, gameFifty, gameBond, gameWolf, gameMissing, gameMemory;
+let gameUpdown, gameFifty, gameBond, gameWolf, gameMissing, gameMemory, gameMathStairs;
 try { gameUpdown = require('./games/updown'); } catch(e) {}
 try { gameFifty = require('./games/fifty'); } catch(e) {}
 try { gameBond = require('./games/bond'); } catch(e) {}
 try { gameWolf = require('./games/wolf'); } catch(e) {}
 try { gameMissing = require('./games/missing'); } catch(e) {}
 try { gameMemory = require('./games/memory'); } catch(e) {}
+try { gameMathStairs = require('./games/math_stairs'); } catch(e) {}
 
 const logic = {};
 
@@ -22,7 +23,7 @@ logic.resetGame = function(mode = 'LOBBY') {
         store.data.isStudentRankVisible = currentRankVis;
         
         store.data.updownScores = {}; store.data.fiftyScores = {}; store.data.fiftyFinishTimes = {};
-        store.data.bondScores = {}; store.data.wolfScores = {}; store.data.missingScores = {}; store.data.memoryScores = {};
+        store.data.bondScores = {}; store.data.wolfScores = {}; store.data.missingScores = {}; store.data.memoryScores = {}; store.data.mathStairsScores = {};
 
         let newPlayers = {};
         if (store.players) {
@@ -57,7 +58,7 @@ logic.startGame = function() {
             Object.keys(store.players).forEach(id => {
                 if (store.players[id] && !store.players[id].isAdmin) {
                     store.players[id].isAlive = true; store.players[id].fiftyTarget = 1; store.players[id].fiftyFinished = false;
-                    if(store.data) { store.data.updownScores[id] = 0; store.data.fiftyScores[id] = 1; store.data.bondScores[id] = 0; store.data.wolfScores[id] = 0; store.data.missingScores[id] = 0; store.data.memoryScores[id] = 0; }
+                    if(store.data) { store.data.updownScores[id] = 0; store.data.fiftyScores[id] = 1; store.data.bondScores[id] = 0; store.data.wolfScores[id] = 0; store.data.missingScores[id] = 0; store.data.memoryScores[id] = 0; store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'ready' }; }
                 }
             });
         }
@@ -77,7 +78,8 @@ logic.startGameLogic = function() {
         else if (mode.includes('BOND') && gameBond) gameBond.run(store, logic);
         else if (mode.includes('WOLF') && gameWolf) { gameWolf.run(store, logic); gameWolf.nextRound(store); }
         else if (mode.includes('MISSING') && gameMissing) { gameMissing.run(store, logic); gameMissing.nextRound(store); }
-        else if (mode.includes('MEMORY') && gameMemory) { gameMemory.run(store, logic); gameMemory.nextRound(store, logic); } 
+        else if (mode.includes('MEMORY') && gameMemory) { gameMemory.run(store, logic); gameMemory.nextRound(store, logic); }
+        else if (mode.includes('MATHSTAIRS') && gameMathStairs) { gameMathStairs.run(store, logic); } 
     } catch (error) { console.error(error); }
 };
 
@@ -103,6 +105,7 @@ logic.forceEndGame = function() {
         else if (mode.includes('WOLF') && gameWolf) gameWolf.endGame(store, logic);
         else if (mode.includes('MISSING') && gameMissing) gameMissing.endGame(store, logic);
         else if (mode.includes('MEMORY') && gameMemory) gameMemory.endGame(store, logic);
+        else if (mode.includes('MATHSTAIRS') && gameMathStairs) gameMathStairs.endGame(store, logic);
         else logic.endGame("강제 종료", [], "선생님에 의해 종료되었습니다.");
     } catch (error) { console.error(error); }
 };

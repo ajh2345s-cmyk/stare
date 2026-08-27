@@ -1,0 +1,78 @@
+module.exports = {
+    run: function(store, logic) {
+        store.gameMode = 'MATHSTAIRS';
+        store.data.mathStairsScores = {};
+        Object.keys(store.players).forEach(id => {
+            const p = store.players[id];
+            if (!p.isAdmin) {
+                p.isAlive = true;
+                store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'ready' };
+            }
+        });
+        store.io.emit('mathStairsStart', { timestamp: Date.now() });
+        this.updateRanking(store);
+    },
+    reset: function(store) {
+        store.data.mathStairsScores = {};
+        Object.keys(store.players).forEach(id => {
+            const p = store.players[id];
+            if (!p.isAdmin) {
+                p.isAlive = true;
+                store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'ready' };
+            }
+        });
+    },
+    handleProgress: function(store, socketId, data) {
+        if (store.gameState !== 'PLAYING') return;
+        const p = store.players[socketId];
+        if (!p || p.isAdmin) return;
+        store.data.mathStairsScores = store.data.mathStairsScores || {};
+        const prev = store.data.mathStairsScores[socketId] || { floor: 1, score: 0, state: 'ready' };
+        const floor = Math.max(1, Number(data && data.floor) || 1);
+        const score = Math.max(0, Number(data && data.score) || 0);
+        // Client sends progress only; never let an accidental rollback reduce a student's visible rank.
+        const nextFloor = Math.max(prev.floor, floor);
+        const nextScore = Math.max(prev.score, score);
+        store.data.mathStairsScores[socketId] = { floor: nextFloor, score: nextScore, state: (data && data.state) || 'playing' };
+        this.updateRanking(store);
+    },
+    handleGameOver: function(store, socketId, data) {
+        const p = store.players[socketId];
+        if (!p || p.isAdmin) return;
+        if (store.data.mathStairsScores && store.data.mathStairsScores[socketId]) {
+            store.data.mathStairsScores[socketId].state = 'gameover';
+        }
+        this.updateRanking(store);
+    },
+    updateRanking: function(store) {
+        const entries = Object.keys(store.players)
+            .filter(id => !store.players[id].isAdmin)
+            .map(id => {
+                const s = (store.data.mathStairsScores || {})[id] || { floor: 1, score: 0, state: 'ready' };
+                return { id, name: store.players[id].name, floor: s.floor || 1, score: s.score || 0, state: s.state || 'ready' };
+            })
+            .sort((a,b) => b.floor - a.floor || b.score - a.score || a.name.localeCompare(b.name));
+        const rankText = entries.map((e,i) => {
+            const stateText = e.state === 'gameover' ? '💥 끝' : (e.state === 'ready' ? '⏳ 대기' : '▶ 진행');
+            return `<div style="display:flex;justify-content:space-between;gap:4px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.1);align-items:center;">
+                <span style="color:#aaa;font-size:11px;width:28px;">${i+1}위</span>
+                <span style="font-weight:bold;flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px;">${e.name}</span>
+                <span style="color:#55efc4;font-weight:bold;font-size:12px;">${e.floor}층</span>
+                <span style="color:#ffd166;font-size:10px;white-space:nowrap;">${stateText}</span>
+            </div>`;
+        }).join('');
+        store.io.emit('liveRankUpdate', rankText || "<div style='color:#ccc;text-align:center;'>대기 중...</div>");
+    },
+    endGame: function(store, logic) {
+        const entries = Object.keys(store.players)
+            .filter(id => !store.players[id].isAdmin)
+            .map(id => {
+                const s = (store.data.mathStairsScores || {})[id] || { floor: 1, score: 0 };
+                return { name: store.players[id].name, floor: s.floor || 1, score: s.score || 0 };
+            })
+            .sort((a,b) => b.floor - a.floor || b.score - a.score);
+        const winners = entries.length ? [entries[0].name] : [];
+        const rankMsg = entries.map((e,i) => `${i+1}위: ${e.name} (${e.floor}층)`).join('<br>');
+        logic.endGame('🪜 수학의 계단 결과', winners, rankMsg || '참여한 학생이 없습니다.');
+    }
+};

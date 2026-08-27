@@ -23,7 +23,8 @@ const gameTitleMap = {
     'LOBBY': '🏫 대기실', 'UPDOWN_READY': '↕️ 업다운 게임', 'UPDOWN': '↕️ 업다운 게임',
     'FIFTY_READY': '🔢 1 to 50', 'FIFTY': '🔢 1 to 50', 'BOND_READY': '🍒 가르기 모으기', 'BOND': '🍒 가르기 모으기',
     'WOLF_READY': '🐺 늑대를 찾아라', 'WOLF': '🐺 늑대를 찾아라', 'MISSING_READY': '🕵️ 깜빡 퀴즈', 'MISSING': '🕵️ 깜빡 퀴즈',
-    'MEMORY_READY': '🧠 기억력 게임', 'MEMORY': '🧠 기억력 게임'
+    'MEMORY_READY': '🧠 기억력 게임', 'MEMORY': '🧠 기억력 게임',
+    'MATHSTAIRS_READY': '🪜 수학의 계단', 'MATHSTAIRS': '🪜 수학의 계단'
 };
 
 window.onload = () => {
@@ -126,6 +127,8 @@ socket.on('initData', d => {
         if (isAdmin) { safeDisplay('admin-panel', 'flex'); updateUserListAdmin(); }
         updateMemoryReadyDisplay(d.settings);
         updateUI();
+        notifyMathStairsFrame();
+        if (mode.includes('MATHSTAIRS') && d.gameState === 'PLAYING' && !isAdmin) notifyMathStairsFrame('start');
     } catch(e) { console.error(e); }
 });
 
@@ -153,7 +156,7 @@ function updateUI() {
     const adminLabel = $('admin-label-users');
     if (adminLabel) adminLabel.innerHTML = `학생 관리 <span style="color:#f1c40f;font-size:10px;">(${stuCount}명)</span> <span class="toggle-btn">[접기]</span>`;
 
-    ['lobby-view', 'updown-game-area', 'fifty-game-area', 'bond-game-area', 'wolf-game-area', 'missing-game-area', 'memory-game-area', 'live-rank', 'status-panel'].forEach(id => safeDisplay(id, 'none'));
+    ['lobby-view', 'updown-game-area', 'fifty-game-area', 'bond-game-area', 'wolf-game-area', 'missing-game-area', 'memory-game-area', 'math-stairs-game-area', 'live-rank', 'status-panel'].forEach(id => safeDisplay(id, 'none'));
 
     if (mode !== 'LOBBY') {
         if (isAdmin || isStudentRankVisible) safeDisplay('live-rank', 'block');
@@ -189,6 +192,7 @@ function updateUI() {
             else if (mode.includes('WOLF')) { safeDisplay('setting-row-wolf', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MISSING')) { safeDisplay('setting-row-missing', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MEMORY')) { safeDisplay('setting-row-memory', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
+            else if (mode.includes('MATHSTAIRS')) { if(!isGameRunning) safeDisplay('admin-start-btn', 'block'); }
         }
     }
 
@@ -198,13 +202,15 @@ function updateUI() {
         if (!isAdmin) safeDisplay('logout-btn', 'block'); 
     } 
     else if (typeof mode === 'string') {
-        safeDisplay('logout-btn', 'none'); 
+        safeDisplay('logout-btn', 'none');
+        if (mode.includes('MATHSTAIRS')) notifyMathStairsFrame(); 
         if (mode.includes('UPDOWN')) safeDisplay('updown-game-area', 'flex');
         else if (mode.includes('FIFTY')) { safeDisplay('fifty-game-area', 'flex'); if (mode === 'FIFTY_READY' && $('fifty-grid') && $('fifty-grid').innerHTML === '') $('fifty-grid').innerHTML = Array(16).fill('<div class="fifty-cell placeholder"></div>').join(''); }
         else if (mode.includes('BOND')) safeDisplay('bond-game-area', 'flex');
         else if (mode.includes('WOLF')) safeDisplay('wolf-game-area', 'flex');
         else if (mode.includes('MISSING')) safeDisplay('missing-game-area', 'flex');
         else if (mode.includes('MEMORY')) safeDisplay('memory-game-area', 'flex');
+        else if (mode.includes('MATHSTAIRS')) safeDisplay('math-stairs-game-area', 'flex');
     }
 }
 
@@ -260,6 +266,7 @@ socket.on('hardReset', d => {
     Array.from(document.querySelectorAll('.mem-box')).forEach(b => b.classList.remove('show-heart', 'active', 'incorrect', 'preview-white'));
     updateMemoryReadyDisplay(d.settings);
     updateUI();
+    notifyMathStairsFrame('reset');
 });
 
 socket.on('startCountdown', d => {
@@ -267,7 +274,7 @@ socket.on('startCountdown', d => {
     const modal = $('countdown-modal'); if(!modal) return; modal.style.display = 'flex'; let count = d.seconds; modal.innerText = count;
     const interval = setInterval(() => {
         count--; if (count > 0) modal.innerText = count; 
-        else { modal.innerText = "시작!"; setTimeout(() => { modal.style.display = 'none'; clearInterval(interval); }, 500); }
+        else { modal.innerText = "시작!"; setTimeout(() => { modal.style.display = 'none'; clearInterval(interval); if(mode.includes('MATHSTAIRS')) notifyMathStairsFrame('start'); }, 500); }
     }, 1000);
 });
 
@@ -311,6 +318,27 @@ function closeQR() {
     const c = $('qr-code-display');
     if(c) c.classList.remove('qr-fullscreen');
 }
+
+
+function notifyMathStairsFrame(action) {
+    const frame = $('math-stairs-frame');
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage({ source:'math-stairs', type:'role', isAdmin, gameState: isGameRunning ? 'PLAYING' : 'WAITING' }, window.location.origin);
+    if (action) frame.contentWindow.postMessage({ source:'math-stairs', type: action }, window.location.origin);
+}
+
+window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return;
+    const d = event.data || {};
+    if (d.source !== 'math-stairs') return;
+    if (d.type === 'ready') {
+        notifyMathStairsFrame();
+    } else if (d.type === 'progress') {
+        if (!isAdmin && mode.includes('MATHSTAIRS')) socket.emit('mathStairsProgress', { floor:d.floor, score:d.score, state:d.state });
+    } else if (d.type === 'gameOver') {
+        if (!isAdmin && mode.includes('MATHSTAIRS')) socket.emit('mathStairsGameOver', { floor:d.floor, score:d.score });
+    }
+});
 
 socket.on('liveRankUpdate', r => { const c = $('rank-content'); if(c) c.innerHTML = r; });
 
