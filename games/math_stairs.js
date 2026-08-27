@@ -43,13 +43,30 @@ module.exports = {
         };
         this.updateRanking(store);
     },
-    handleGameOver: function(store, socketId, data) {
+    handleGameOver: function(store, socketId, data, logic) {
+        if (store.gameState !== 'PLAYING') return;
         const p = store.players[socketId];
         if (!p || p.isAdmin) return;
-        if (store.data.mathStairsScores && store.data.mathStairsScores[socketId]) {
-            store.data.mathStairsScores[socketId].state = 'gameover';
-        }
+        store.data.mathStairsScores = store.data.mathStairsScores || {};
+        const prev = store.data.mathStairsScores[socketId] || { floor: 1, score: 0, state: 'ready' };
+        const floor = Math.max(1, Number(data && data.floor) || prev.floor || 1);
+        const score = Math.max(0, Number(data && data.score) || prev.score || 0);
+        store.data.mathStairsScores[socketId] = {
+            ...prev,
+            floor: Math.max(prev.floor || 1, floor),
+            score: Math.max(prev.score || 0, score),
+            state: 'gameover'
+        };
         this.updateRanking(store);
+
+        // 모든 학생의 플레이가 끝나면 교사의 추가 조작 없이 기존 결과 화면을 자동으로 띄운다.
+        const students = Object.keys(store.players).filter(id => !store.players[id].isAdmin);
+        const scores = store.data.mathStairsScores;
+        const allFinished = students.length > 0 && students.every(id => scores[id] && scores[id].state === 'gameover');
+        if (allFinished && store.gameState === 'PLAYING') {
+            if (logic && typeof logic.endGame === 'function') this.endGame(store, logic);
+
+        }
     },
     updateRanking: function(store) {
         const entries = Object.keys(store.players)

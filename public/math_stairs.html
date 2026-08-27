@@ -87,7 +87,7 @@
         <div id="charName" style="font-size:18px;font-weight:900;margin-bottom:10px">동그라미</div>
         <div style="font-weight:900;margin-bottom:8px">캐릭터 색상</div>
         <div class="colorRow" id="colorRow"></div>
-        <button class="primary" id="playBtn">GAME START</button>
+        <button class="primary" id="playBtn" disabled>선생님이 시작할 때까지 기다리세요</button>
         <div class="tip">화살표 버튼은 방향을 바꾸면서 한 칸 올라갑니다.<br>오르기는 현재 방향으로 한 칸 올라갑니다.</div>
       </div>
     </div>
@@ -132,7 +132,7 @@
           <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">최고 기록</small><div id="resultBest" style="font-size:24px;font-weight:1000">0층</div></div>
           <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">획득 점수</small><div id="resultScore" style="font-size:24px;font-weight:1000">0</div></div>
         </div>
-        <button class="primary" id="retryBtn">RETRY</button>
+        
       </div>
     </div>
 
@@ -311,6 +311,7 @@
   }
 
   function startGame(seed){
+    if(state==='PLAYING' && !mathPending) return;
     if(seed !== undefined && seed !== null) mapSeed = Number(seed) >>> 0;
     state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
     buildInitialStairs(); ensureStepsAhead();
@@ -440,9 +441,7 @@
     }
   }
 
-  document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
-  document.getElementById('retryBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
-  document.getElementById('answerBtn').addEventListener('click',submitMath);
+    document.getElementById('answerBtn').addEventListener('click',submitMath);
   answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
 
   function keypadPress(key){
