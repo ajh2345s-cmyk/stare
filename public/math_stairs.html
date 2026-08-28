@@ -132,7 +132,6 @@
           <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">최고 기록</small><div id="resultBest" style="font-size:24px;font-weight:1000">0층</div></div>
           <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">획득 점수</small><div id="resultScore" style="font-size:24px;font-weight:1000">0</div></div>
         </div>
-        <button class="primary" id="retryBtn">RETRY</button>
       </div>
     </div>
 
@@ -195,7 +194,6 @@
 
   let embeddedHost = false;
   let hostIsAdmin = false;
-  let hostGameEverStarted = false;
   let state='TITLE';
   let paused=false;
   let floor=1;
@@ -218,6 +216,9 @@
   const MATH_TIME_LIMIT=7.0;
   let mathTimeoutHandled=false;
   let visualFall=0;
+  let sharedSeed=0;
+  let otherPlayers={};
+  let localPlayerId=null;
 
   // Gameplay constants tuned to the original feel, with original shapes/art.
   const STAIR_W = 86;
@@ -237,7 +238,7 @@
       b.className='colorBtn'+(i===selectedColor?' selected':'');
       b.style.background=c.fill;
       b.title=c.name; b.setAttribute('aria-label', c.name);
-      b.addEventListener('click',()=>{selectedColor=i; updateCharacterPreview();});
+      b.addEventListener('click',()=>{selectedColor=i; updateCharacterPreview(); notifyProfile();});
       colorRow.appendChild(b);
     });
   }
@@ -254,131 +255,79 @@
     renderColorChoices();
   }
   document.getElementById('leftChar').addEventListener('click',()=>{
-    selectedChar=(selectedChar+CHARACTERS.length-1)%CHARACTERS.length; updateCharacterPreview();
+    selectedChar=(selectedChar+CHARACTERS.length-1)%CHARACTERS.length; updateCharacterPreview(); notifyProfile();
   });
   document.getElementById('rightChar').addEventListener('click',()=>{
-    selectedChar=(selectedChar+1)%CHARACTERS.length; updateCharacterPreview();
+    selectedChar=(selectedChar+1)%CHARACTERS.length; updateCharacterPreview(); notifyProfile();
   });
   updateCharacterPreview();
 
-  function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-
-  // No direction arrows on stairs. Each stair is simply a connected platform.
-  function makeStep(i, prev){
-    let dir;
-    // 시작 2칸은 직진으로 익히게 하고, 3번째 계단부터는 완전 랜덤.
-    // 직진 = 이전 계단과 같은 방향으로 계속 전진.
-    if(i <= 2){
-      dir = 1;
-    } else {
-      dir = Math.random() < 0.5 ? 1 : -1;
-    }
-    return {
-      i,
-      x: prev.x + dir*DX,
-      y: prev.y - DY,
-      dir
+  function seededRng(seed){
+    let t=(Number(seed)>>>0)||1;
+    return function(){
+      t=(t+0x6D2B79F5)>>>0;
+      let r=Math.imul(t^(t>>>15),1|t);
+      r^=r+Math.imul(r^(r>>>7),61|r);
+      return ((r^(r>>>14))>>>0)/4294967296;
     };
   }
-
+  function makeStep(i,prev,rng){
+    const dir=i<=2 ? 1 : (rng()<0.5?1:-1);
+    return {i,x:prev.x+dir*DX,y:prev.y-DY,dir};
+  }
   function buildInitialStairs(){
-    steps=[];
-    steps.push({i:0,x:0,y:0,dir:0});
-    for(let i=1;i<MAX_STEPS_AHEAD;i++) steps.push(makeStep(i,steps[i-1]));
+    const rng=seededRng(sharedSeed);
+    steps=[]; steps.push({i:0,x:0,y:0,dir:0});
+    for(let i=1;i<MAX_STEPS_AHEAD;i++) steps.push(makeStep(i,steps[i-1],rng));
     syncPlayerToStep(0);
   }
-
   function ensureStepsAhead(){
-    while(steps.length < floor + MAX_STEPS_AHEAD/2){
-      steps.push(makeStep(steps.length,steps[steps.length-1]));
-    }
+    const need=Math.max(MAX_STEPS_AHEAD,floor+MAX_STEPS_AHEAD/2);
+    if(steps.length>=need) return;
+    const rng=seededRng(sharedSeed);
+    for(let i=3;i<steps.length;i++) rng();
+    while(steps.length<need) steps.push(makeStep(steps.length,steps[steps.length-1],rng));
   }
-
   function syncPlayerToStep(i){
     const s=steps[Math.max(0,Math.min(i,steps.length-1))];
     player.x=s.x; player.y=s.y; player.targetX=s.x; player.targetY=s.y; player.anim=0; player.fromX=s.x; player.fromY=s.y;
   }
-
-  function notifyHost(type, payload={}){
-    if(embeddedHost && window.parent && window.parent !== window){
-      window.parent.postMessage({source:'math-stairs', type, ...payload}, window.location.origin);
-    }
+  function notifyHost(type,payload={}){
+    if(embeddedHost&&window.parent&&window.parent!==window) window.parent.postMessage({source:'math-stairs',type,...payload},window.location.origin);
   }
-
-  function startGame(){
-    if (state==='PLAYING' && !mathPending) return;
+  function notifyProfile(){
+    notifyHost('profile',{character:CHARACTERS[selectedChar],colorIndex:selectedColor});
+  }
+  function startGame(seed){
+    if(state==='PLAYING'&&!mathPending) return;
+    sharedSeed=(Number(seed)>>>0)||1;
     state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
-    buildInitialStairs(); ensureStepsAhead();
-    // 게임 시작 즉시 카메라를 캐릭터에 맞춘다. 첫 프레임부터 캐릭터가 보이게 한다.
-    snapCameraToPlayer();
+    buildInitialStairs(); snapCameraToPlayer();
     startScreen.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
-    hud.classList.remove('hidden'); controls.classList.remove('hidden');
-    updateHUD();
-    notifyHost('progress', {floor, score, state:'playing'});
+    hud.classList.remove('hidden'); controls.classList.remove('hidden'); updateHUD(); notifyProfile();
+    notifyHost('progress',{floor,score,state:'playing',x:player.x,y:player.y,facing,character:CHARACTERS[selectedChar],colorIndex:selectedColor});
   }
-
-  function updateHUD(){
-    floorText.textContent=floor;
-    bestText.textContent=best;
-    hpFill.style.width=Math.max(0,hp)+'%';
-  }
-
-  function levelDrainPerSec(){
-    // Gradual speed-up. It accelerates smoothly rather than becoming impossible abruptly.
-    // 초반부터 느슨하지 않게 시작하고, 층수가 높아질수록 지속적으로 빨라진다.
-    return BASE_HP_DRAIN + Math.min(9.5, floor*0.045);
-  }
-
-  function regenPerStep(){
-    return Math.max(6.0, 7.2 - Math.min(1.2,floor*0.004));
-  }
-
-  function isCorrectDestination(next, movementDir){
-    const dx = next.x - player.x;
-    return (movementDir>0 && dx>0) || (movementDir<0 && dx<0);
-  }
-
+  function updateHUD(){ floorText.textContent=floor; bestText.textContent=best; }
+  function levelDrainPerSec(){ return BASE_HP_DRAIN+Math.min(9.5,floor*0.045); }
+  function regenPerStep(){ return Math.max(6.0,7.2-Math.min(1.2,floor*0.004)); }
+  function isCorrectDestination(next,movementDir){ const dx=next.x-player.x; return (movementDir>0&&dx>0)||(movementDir<0&&dx<0); }
   function performAction(turn){
-    if(state!=='PLAYING' || paused || mathPending || actionLock) return;
-    ensureStepsAhead();
-    const next = steps[floor];
-    const moveDir = turn ? -facing : facing;
-    if(turn) facing *= -1;
-    actionLock=true;
-    player.fromX=player.x; player.fromY=player.y;
-    player.targetX=next.x; player.targetY=next.y;
-    player.anim=0;
-    if(!isCorrectDestination(next,moveDir)){
-      // Step off the staircase and fall.
-      visualFall=1;
-      setTimeout(()=>gameOver(),260);
-      return;
-    }
-    // successful climb
-    floor++;
-    score++;
-    notifyHost('progress', {floor, score, state:'playing'});
-    hp=Math.min(100,hp+regenPerStep());
-    ensureStepsAhead();
-    if(floor>best){ best=floor; localStorage.setItem('mathStairsBest',String(best)); }
-    updateHUD();
-    setTimeout(()=>{
-      actionLock=false;
-      if(floor%25===0) openMath();
-    },120);
+    if(state!=='PLAYING'||paused||mathPending||actionLock) return;
+    ensureStepsAhead(); const next=steps[floor]; const moveDir=turn?-facing:facing; if(turn) facing*=-1;
+    actionLock=true; player.fromX=player.x; player.fromY=player.y; player.targetX=next.x; player.targetY=next.y; player.anim=0;
+    if(!isCorrectDestination(next,moveDir)){ visualFall=1; setTimeout(()=>gameOver(),260); return; }
+    floor++; score++; hp=Math.min(100,hp+regenPerStep()); ensureStepsAhead();
+    if(floor>best){best=floor; localStorage.setItem('mathStairsBest',String(best));}
+    notifyHost('progress',{floor,score,state:'playing',x:next.x,y:next.y,facing,character:CHARACTERS[selectedChar],colorIndex:selectedColor});
+    updateHUD(); setTimeout(()=>{actionLock=false;if(floor%25===0)openMath();},120);
   }
-
   function randomMath(){
-    const usePlus=Math.random()<0.55;
-    if(usePlus){
-      const a=randInt(0,10);
-      const b=randInt(0,10-a);
-      return {q:`${a} + ${b} = ?`,a:a+b};
-    } else {
-      const a=randInt(0,10);
-      const b=randInt(0,a);
-      return {q:`${a} − ${b} = ?`,a:a-b};
-    }
+    const rng=seededRng((sharedSeed ^ Math.imul(floor+1,0x9E3779B9))>>>0);
+    const plus=rng()<0.5; const pairs=[];
+    if(plus){for(let a=0;a<=10;a++)for(let b=0;b<=10-a;b++)pairs.push([a,b]);}
+    else{for(let a=0;a<=10;a++)for(let b=0;b<=a;b++)pairs.push([a,b]);}
+    const [a,b]=pairs[Math.floor(rng()*pairs.length)];
+    return plus?{q:`${a} + ${b} = ?`,a:a+b}:{q:`${a} − ${b} = ?`,a:a-b};
   }
 
   function openMath(){
@@ -401,7 +350,7 @@
     const target=Math.max(1,floor-15);
     setTimeout(()=>{
       floor=target; score=Math.max(0, target-1); hp=Math.max(hp,55);
-      notifyHost('progress', {floor, score, state:'penalty'});
+      notifyHost('progress', {floor, score, state:'penalty', x:player.x, y:player.y, facing, character:CHARACTERS[selectedChar], colorIndex:selectedColor});
       syncPlayerToStep(floor-1);
       ensureStepsAhead();
       mathPending=false; mathScreen.classList.add('hidden'); answerInput.disabled=false; actionLock=false; visualFall=0; updateHUD();
@@ -423,7 +372,7 @@
       const target=Math.max(1,floor-15);
       setTimeout(()=>{
         floor=target; score=Math.max(0, target-1); hp=Math.max(hp,55);
-      notifyHost('progress', {floor, score, state:'penalty'});
+      notifyHost('progress', {floor, score, state:'penalty', x:player.x, y:player.y, facing, character:CHARACTERS[selectedChar], colorIndex:selectedColor});
         syncPlayerToStep(floor-1);
         ensureStepsAhead();
         mathPending=false; mathScreen.classList.add('hidden'); actionLock=false; visualFall=0; updateHUD();
@@ -432,9 +381,7 @@
   }
 
   document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
-  const retryBtn=document.getElementById('retryBtn');
-  if(retryBtn) retryBtn.style.display='none';
-  if(retryBtn) retryBtn.addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
+  document.getElementById('retryBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
   document.getElementById('answerBtn').addEventListener('click',submitMath);
   answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
 
@@ -561,6 +508,19 @@
     ctx.fillRect(left+10,top+12,STAIR_W-20,5);
   }
 
+  function drawOtherPlayers(){
+    Object.values(otherPlayers).forEach(op=>{
+      if(op.id===localPlayerId || Math.abs((op.floor||1)-floor)>7) return;
+      if(typeof op.x!=='number'||typeof op.y!=='number') return;
+      const p=worldToScreen(op.x,op.y),x=p.x,y=p.y-PLAYER_DRAW_OFFSET_Y;
+      if(x<-70||x>W+70||y<-90||y>H+90) return;
+      const ci=Number.isInteger(Number(op.colorIndex))?Number(op.colorIndex):0;
+      ctx.save(); ctx.globalAlpha=0.10; ctx.translate(x,y); ctx.scale(op.facing<0?-1:1,1);
+      drawCharacterShape(op.character||'circle',false,(COLORS[ci]||COLORS[0]).fill);
+      ctx.restore(); ctx.globalAlpha=1;
+    });
+  }
+
   function drawPlayer(){
     // 캐릭터의 '발 위치'를 월드 좌표로 잡고, 항상 계단 위에 보이도록 렌더링한다.
     let wx = player.x;
@@ -608,7 +568,7 @@
     ctx.restore();
   }
 
-  function drawCharacterShape(kind, falling){
+  function drawCharacterShape(kind, falling, colorOverride){
     // 그림자가 먼저 표시되어 계단 위에서 캐릭터가 떠 보이지 않도록 한다.
     ctx.fillStyle='rgba(0,0,0,.25)';
     ctx.beginPath();
@@ -616,7 +576,7 @@
     ctx.fill();
 
     if(kind==='circle'){
-      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
       ctx.beginPath();
       ctx.arc(0,0,25,0,Math.PI*2);
       ctx.fill();
@@ -634,7 +594,7 @@
       ctx.arc(9,-7,4,0,Math.PI*2);
       ctx.fill();
     }else if(kind==='square'){
-      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
       ctx.fillRect(-25,-25,50,50);
       ctx.strokeStyle='#ffffff';
       ctx.lineWidth=10;
@@ -645,7 +605,7 @@
       ctx.fillStyle='#132233';
       ctx.fillRect(9,-8,6,6);
     }else{
-      ctx.fillStyle=COLORS[selectedColor].fill;
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
       ctx.beginPath();
       ctx.moveTo(0,-31);
       ctx.lineTo(-31,25);
@@ -696,7 +656,7 @@
       const sy=worldToScreen(s.x,s.y).y;
       if(sy>-100 && sy<H+100) drawStair(s);
     }
-    if(state!=='TITLE') drawPlayer();
+    if(state!=='TITLE'){drawOtherPlayers();drawPlayer();}
     if(state==='PLAYING' && !paused && !mathPending){
       const vign=ctx.createLinearGradient(0,0,0,H); vign.addColorStop(0,'rgba(0,0,0,.03)'); vign.addColorStop(.75,'rgba(0,0,0,.02)'); vign.addColorStop(1,'rgba(0,0,0,.12)'); ctx.fillStyle=vign; ctx.fillRect(0,0,W,H);
     }
@@ -731,7 +691,6 @@
     mathScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     pauseScreen.classList.add('hidden');
-    if (hostGameEverStarted) return;
     startScreen.classList.remove('hidden');
     const btn=document.getElementById('playBtn');
     if(btn){ btn.disabled=true; btn.textContent='선생님이 시작할 때까지 기다리세요'; btn.style.opacity='.65'; }
@@ -756,34 +715,23 @@
     const d=event.data||{};
     if(d.source!=='math-stairs') return;
     if(d.type==='role'){
-      embeddedHost=true;
-      hostIsAdmin=!!d.isAdmin;
-      if(!hostIsAdmin && d.gameState==='PLAYING'){
-        hostGameEverStarted=true;
-        startGame();
-        return;
-      }
+      embeddedHost=true; hostIsAdmin=!!d.isAdmin; localPlayerId=d.selfId||localPlayerId;
+      if(Array.isArray(d.remotePlayers)) otherPlayers=Object.fromEntries(d.remotePlayers.map(p=>[p.id,p]));
+      if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed;
       setAdminView();
+      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame(sharedSeed);
       return;
     }
     if(!embeddedHost || hostIsAdmin) return;
-    if(d.type==='start'){
-      hostGameEverStarted=true;
-      startGame();
-      return;
-    }
-    if(d.type==='reset'){
-      hostGameEverStarted=false;
-      state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0;
-      hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
-      setEmbeddedWaiting();
-    }
+    if(d.type==='start'){ startGame(d.mapSeed!=null?d.mapSeed:sharedSeed); return; }
+    if(d.type==='players'){ otherPlayers=d.players||{}; return; }
+    if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
   });
 
   if(window.parent && window.parent !== window){
     embeddedHost=true;
     setEmbeddedWaiting();
-    notifyHost('ready');
+    notifyHost('ready'); notifyProfile();
   }
 
   requestAnimationFrame(update);

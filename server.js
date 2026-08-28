@@ -281,6 +281,7 @@ io.on('connection', (socket) => {
 
     socket.on('mathStairsProgress', (data) => { try { mathStairs.handleProgress(store, socket.id, data); } catch(e) {} });
     socket.on('mathStairsGameOver', (data) => { try { mathStairs.handleGameOver(store, socket.id, data, logic); } catch(e) {} });
+    socket.on('mathStairsProfile', (data) => { try { mathStairs.handleProfile(store, socket.id, data); } catch(e) {} });
 
     socket.on('disconnect', () => { 
         try { 
