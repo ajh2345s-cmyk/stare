@@ -2,8 +2,7 @@ const socket = io(window.location.origin);
 const $ = id => document.getElementById(id);
 
 let myId, isAdmin = false, mode = 'LOBBY', players = {};
-let isGameRunning = false;
-let mathStairsSeed = null; 
+let isGameRunning = false; 
 
 let updownBuffer = ""; let updownLock = true;
 let fiftyTarget = 1; let fiftyPenalty = false; 
@@ -117,7 +116,6 @@ socket.on('initData', d => {
     try {
         safeDisplay('login-screen', 'none');
         myId = d.myId; isAdmin = d.isAdmin; mode = d.gameMode || 'LOBBY'; players = d.players || {};
-        mathStairsSeed = d.mathStairsSeed ?? mathStairsSeed;
         isStudentRankVisible = d.isStudentRankVisible ?? true; 
         
         const lockBtn = $('lock-btn');
@@ -130,8 +128,7 @@ socket.on('initData', d => {
         updateMemoryReadyDisplay(d.settings);
         updateUI();
         notifyMathStairsFrame();
-        // 수학의 계단은 서버의 mathStairsStart 신호로만 시작한다.
-        // initData의 PLAYING 상태를 보고 중복 시작시키지 않는다.
+        if (mode.includes('MATHSTAIRS') && d.gameState === 'PLAYING' && !isAdmin) notifyMathStairsFrame('start');
     } catch(e) { console.error(e); }
 });
 
@@ -254,7 +251,6 @@ socket.on('kicked', () => {
 
 socket.on('hardReset', d => {
     mode = d.mode || 'LOBBY'; players = d.players || {}; isGameRunning = false; studentDoneMap = {};
-    mathStairsSeed = null;
     safeText('updown-history', ''); updownBuffer = ""; safeText('updown-display', '0'); safeText('updown-feedback', 'START');
     bondBuffer = ""; isBondFinished = false; safeText('bond-display', ''); safeText('bond-msg', '');
     if($('fifty-grid')) $('fifty-grid').innerHTML = ''; 
@@ -278,7 +274,7 @@ socket.on('startCountdown', d => {
     const modal = $('countdown-modal'); if(!modal) return; modal.style.display = 'flex'; let count = d.seconds; modal.innerText = count;
     const interval = setInterval(() => {
         count--; if (count > 0) modal.innerText = count; 
-        else { modal.innerText = "시작!"; setTimeout(() => { modal.style.display = 'none'; clearInterval(interval); }, 500); }
+        else { modal.innerText = "시작!"; setTimeout(() => { modal.style.display = 'none'; clearInterval(interval); if(mode.includes('MATHSTAIRS')) notifyMathStairsFrame('start'); }, 500); }
     }, 1000);
 });
 
@@ -327,19 +323,24 @@ function closeQR() {
 function notifyMathStairsFrame(action) {
     const frame = $('math-stairs-frame');
     if (!frame || !frame.contentWindow) return;
-    frame.contentWindow.postMessage({
-        source:'math-stairs',
-        type:'role',
-        isAdmin,
-        gameState: isGameRunning ? 'PLAYING' : 'WAITING',
-        mapSeed: mathStairsSeed,
-        remotePlayers: window._mathStairsPlayers || [],
-        selfId: myId
-    }, window.location.origin);
-    if (action) {
-        frame.contentWindow.postMessage({ source:'math-stairs', type: action, mapSeed: mathStairsSeed }, window.location.origin);
-    }
+    frame.contentWindow.postMessage({ source:'math-stairs', type:'role', isAdmin, gameState: isGameRunning ? 'PLAYING' : 'WAITING' }, window.location.origin);
+    if (action) frame.contentWindow.postMessage({ source:'math-stairs', type: action }, window.location.origin);
 }
+
+function mathStairsFrameLoaded() {
+    notifyMathStairsFrame();
+    if (mode.includes('MATHSTAIRS') && isGameRunning && !isAdmin) notifyMathStairsFrame('start');
+}
+window.addEventListener('load', () => {
+    const frame = $('math-stairs-frame');
+    if (frame) frame.addEventListener('load', mathStairsFrameLoaded);
+});
+
+// iframe이 늦게 로드되거나 모바일 브라우저가 복원한 경우에도 현재 역할/상태를 다시 전달
+window.addEventListener('load', () => {
+    const frame = $('math-stairs-frame');
+    if (frame) frame.addEventListener('load', () => notifyMathStairsFrame());
+});
 
 window.addEventListener('message', (event) => {
     if (event.origin !== window.location.origin) return;
@@ -347,29 +348,12 @@ window.addEventListener('message', (event) => {
     if (d.source !== 'math-stairs') return;
     if (d.type === 'ready') {
         notifyMathStairsFrame();
-        if (!isAdmin && mode.includes('MATHSTAIRS') && isGameRunning) {
-            setTimeout(() => notifyMathStairsFrame('start'), 50);
-            setTimeout(() => notifyMathStairsFrame('start'), 500);
-        }
+        if (mode.includes('MATHSTAIRS') && isGameRunning && !isAdmin) notifyMathStairsFrame('start');
     } else if (d.type === 'progress') {
         if (!isAdmin && mode.includes('MATHSTAIRS')) socket.emit('mathStairsProgress', { floor:d.floor, score:d.score, state:d.state });
     } else if (d.type === 'gameOver') {
         if (!isAdmin && mode.includes('MATHSTAIRS')) socket.emit('mathStairsGameOver', { floor:d.floor, score:d.score });
     }
-});
-
-socket.on('mathStairsStart', d => {
-    mathStairsSeed = d && d.mapSeed != null ? Number(d.mapSeed) >>> 0 : mathStairsSeed;
-    if (mode.includes('MATHSTAIRS') && !isAdmin) {
-        notifyMathStairsFrame('start');
-        setTimeout(() => notifyMathStairsFrame('start'), 250);
-        setTimeout(() => notifyMathStairsFrame('start'), 900);
-    }
-});
-
-socket.on('mathStairsPlayersUpdate', list => {
-    window._mathStairsPlayers = Array.isArray(list) ? list : [];
-    notifyMathStairsFrame();
 });
 
 socket.on('liveRankUpdate', r => { const c = $('rank-content'); if(c) c.innerHTML = r; });
