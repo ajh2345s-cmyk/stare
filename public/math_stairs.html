@@ -9,8 +9,8 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif;color:var(--text)}
   button{font:inherit;color:inherit;border:0;cursor:pointer}
-  #app{width:100%;height:100%;display:flex;justify-content:center;background:linear-gradient(#101827,#0c1220)}
-  #game{position:relative;width:min(100vw,520px);height:100dvh;overflow:hidden;background:linear-gradient(#92c6e8 0 42%,#7ca8c3 42% 100%);touch-action:none}
+  #app{width:100%;height:100%;display:flex;justify-content:center;background:#111827}
+  #game{position:relative;width:min(100vw,600px);height:100dvh;overflow:hidden;background:#dfe7ef;touch-action:none}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   .hud{position:absolute;left:12px;right:12px;top:max(10px,env(safe-area-inset-top));z-index:10;display:flex;align-items:center;gap:10px;pointer-events:none}
   .stat{background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);padding:8px 12px;border-radius:12px;min-width:92px;box-shadow:0 5px 12px rgba(0,0,0,.18)}
@@ -65,8 +65,7 @@
     <div class="hud hidden" id="hud">
       <div class="stat"><small>층</small><strong id="floorText">1</strong></div>
       <div class="stat"><small>기록</small><strong id="bestText">0</strong></div>
-      <div class="hpWrap"><div class="hpBar"><div id="hpFill"></div></div></div>
-      <button class="pause" id="pauseBtn" aria-label="일시정지">Ⅱ</button>
+      
     </div>
 
     <div class="controls hidden" id="controls">
@@ -128,21 +127,11 @@
         <h1 style="font-size:36px">GAME OVER</h1>
         <div class="sub">이번 기록</div>
         <div style="font-size:52px;font-weight:1000;margin:8px 0 14px" id="resultFloor">0층</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px">
-          <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">최고 기록</small><div id="resultBest" style="font-size:24px;font-weight:1000">0층</div></div>
-          <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">획득 점수</small><div id="resultScore" style="font-size:24px;font-weight:1000">0</div></div>
-        </div>
-        
+        <div class="sub">게임이 종료되었습니다.<br>선생님이 결과를 확인합니다.</div>
       </div>
     </div>
 
-    <div class="screen hidden" id="pauseScreen">
-      <div class="card">
-        <h1 style="font-size:34px">PAUSED</h1>
-        <button class="primary" id="resumeBtn">계속하기</button>
-        <button class="secondary" id="quitBtn">메인으로</button>
-      </div>
-    </div>
+    <div class="screen hidden" id="pauseScreen"><div class="card"><h1 style="font-size:34px">대기 중</h1></div></div>
   </div>
 </div>
 
@@ -315,7 +304,7 @@
   function startGame(seed){
     if(state==='PLAYING' && !mathPending) return;
     if(seed !== undefined && seed !== null) mapSeed = Number(seed) >>> 0;
-    state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
+    state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false; gameSessionStarted=true; gameOverSent=false; last=performance.now();
     buildInitialStairs(); ensureStepsAhead();
     // 게임 시작 즉시 카메라를 캐릭터에 맞춘다. 첫 프레임부터 캐릭터가 보이게 한다.
     snapCameraToPlayer();
@@ -468,12 +457,6 @@
     const press=(e)=>{ e.preventDefault(); keypadPress(btn.dataset.key); };
     btn.addEventListener('pointerdown',press,{passive:false});
   });
-  document.getElementById('pauseBtn').addEventListener('click',()=>{
-    if(state!=='PLAYING' || mathPending) return;
-    paused=true; pauseScreen.classList.remove('hidden');
-  });
-  document.getElementById('resumeBtn').addEventListener('click',()=>{paused=false; pauseScreen.classList.add('hidden');});
-  document.getElementById('quitBtn').addEventListener('click',()=>{paused=false; state='TITLE'; hud.classList.add('hidden'); controls.classList.add('hidden'); pauseScreen.classList.add('hidden'); startScreen.classList.remove('hidden');});
 
   function bindPress(btn, fn){
     const press=(e)=>{ e.preventDefault(); fn(); };
@@ -501,20 +484,8 @@
   }
 
   function drawBackground(){
-    const grad=ctx.createLinearGradient(0,0,0,H);
-    grad.addColorStop(0,'#b4ddf5'); grad.addColorStop(.55,'#8fc1df'); grad.addColorStop(1,'#6c8ca8');
-    ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
-    // simple distant city blocks for visual depth
-    const base=H*0.48 + 30;
-    for(let i=0;i<15;i++){
-      const bw=50+((i*37)%55); const bh=40+((i*59)%105); const x=i*45-((cameraY/6)%45);
-      ctx.fillStyle='rgba(255,255,255,.16)'; ctx.fillRect(x,base-bh,bw,bh);
-      for(let yy=base-bh+12; yy<base-12; yy+=17){
-        for(let xx=x+8; xx<x+bw-8; xx+=18){
-          ctx.fillStyle='rgba(80,120,150,.22)'; ctx.fillRect(xx,yy,9,7);
-        }
-      }
-    }
+    ctx.fillStyle='#dfe7ef';
+    ctx.fillRect(0,0,W,H);
   }
 
   function worldToScreen(x,y){
@@ -599,6 +570,21 @@
     }
   }
 
+  function drawPlayerTimeBar(x,y){
+    const w=92, h=10;
+    const left=x-w/2, top=y-78;
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.55)';
+    ctx.fillRect(left-3, top-3, w+6, h+6);
+    const ratio=Math.max(0,Math.min(1,hp/100));
+    ctx.fillStyle=ratio>0.5?'#22c55e':(ratio>0.25?'#f59e0b':'#ef4444');
+    ctx.fillRect(left, top, w*ratio, h);
+    ctx.strokeStyle='#ffffff'; ctx.lineWidth=2; ctx.strokeRect(left,top,w,h);
+    ctx.fillStyle='#111827'; ctx.font='bold 10px system-ui'; ctx.textAlign='center';
+    ctx.fillText(Math.ceil(Math.max(0,hp))+'%', x, top-6);
+    ctx.restore();
+  }
+
   function drawPlayer(){
     // 캐릭터의 '발 위치'를 월드 좌표로 잡고, 항상 계단 위에 보이도록 렌더링한다.
     let wx = player.x;
@@ -614,6 +600,8 @@
     let p = worldToScreen(wx, wy);
     let x = p.x;
     let y = p.y - PLAYER_DRAW_OFFSET_Y;
+
+    drawPlayerTimeBar(x, y);
 
     // 올라가는 순간 살짝 튀는 바운스
     if(player.anim < 1){

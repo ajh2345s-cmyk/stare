@@ -347,6 +347,10 @@ window.addEventListener('message', (event) => {
     if (d.source !== 'math-stairs') return;
     if (d.type === 'ready') {
         notifyMathStairsFrame();
+        if (!isAdmin && mode.includes('MATHSTAIRS') && isGameRunning) {
+            setTimeout(() => notifyMathStairsFrame('start'), 50);
+            setTimeout(() => notifyMathStairsFrame('start'), 500);
+        }
     } else if (d.type === 'progress') {
         if (!isAdmin && mode.includes('MATHSTAIRS')) socket.emit('mathStairsProgress', { floor:d.floor, score:d.score, state:d.state });
     } else if (d.type === 'gameOver') {
@@ -356,7 +360,11 @@ window.addEventListener('message', (event) => {
 
 socket.on('mathStairsStart', d => {
     mathStairsSeed = d && d.mapSeed != null ? Number(d.mapSeed) >>> 0 : mathStairsSeed;
-    if (mode.includes('MATHSTAIRS') && !isAdmin) notifyMathStairsFrame('start');
+    if (mode.includes('MATHSTAIRS') && !isAdmin) {
+        notifyMathStairsFrame('start');
+        setTimeout(() => notifyMathStairsFrame('start'), 250);
+        setTimeout(() => notifyMathStairsFrame('start'), 900);
+    }
 });
 
 socket.on('mathStairsPlayersUpdate', list => {
