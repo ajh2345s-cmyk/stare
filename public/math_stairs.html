@@ -195,6 +195,7 @@
 
   let embeddedHost = false;
   let hostIsAdmin = false;
+  let hostGameEverStarted = false;
   let state='TITLE';
   let paused=false;
   let floor=1;
@@ -431,7 +432,9 @@
   }
 
   document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
-  document.getElementById('retryBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
+  const retryBtn=document.getElementById('retryBtn');
+  if(retryBtn) retryBtn.style.display='none';
+  if(retryBtn) retryBtn.addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
   document.getElementById('answerBtn').addEventListener('click',submitMath);
   answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
 
@@ -728,6 +731,7 @@
     mathScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     pauseScreen.classList.add('hidden');
+    if (hostGameEverStarted) return;
     startScreen.classList.remove('hidden');
     const btn=document.getElementById('playBtn');
     if(btn){ btn.disabled=true; btn.textContent='선생님이 시작할 때까지 기다리세요'; btn.style.opacity='.65'; }
@@ -752,13 +756,28 @@
     const d=event.data||{};
     if(d.source!=='math-stairs') return;
     if(d.type==='role'){
-      embeddedHost=true; hostIsAdmin=!!d.isAdmin; setAdminView();
-      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame();
+      embeddedHost=true;
+      hostIsAdmin=!!d.isAdmin;
+      if(!hostIsAdmin && d.gameState==='PLAYING'){
+        hostGameEverStarted=true;
+        startGame();
+        return;
+      }
+      setAdminView();
       return;
     }
     if(!embeddedHost || hostIsAdmin) return;
-    if(d.type==='start'){ startGame(); return; }
-    if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
+    if(d.type==='start'){
+      hostGameEverStarted=true;
+      startGame();
+      return;
+    }
+    if(d.type==='reset'){
+      hostGameEverStarted=false;
+      state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0;
+      hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
+      setEmbeddedWaiting();
+    }
   });
 
   if(window.parent && window.parent !== window){
