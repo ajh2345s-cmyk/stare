@@ -591,8 +591,11 @@ socket.on('wolfStartRound', d => {
 
 function wolfClick(idx) {
     if(wolfLock || isAdmin) return;
+    const animal = wolfAnimals[idx];
+    if(!animal || !Number.isInteger(animal.pos)) return;
     wolfLock = true;
-    socket.emit('wolfSubmit', idx);
+    // 섞인 뒤에는 처음 생성된 인덱스가 아니라 현재 화면상의 위치를 서버에 보내야 한다.
+    socket.emit('wolfSubmit', animal.pos);
 }
 socket.on('wolfResult', d => {
     const complete = !!d.complete;
