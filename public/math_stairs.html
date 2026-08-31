@@ -298,9 +298,10 @@
   function notifyProfile(){
     notifyHost('profile',{character:CHARACTERS[selectedChar],colorIndex:selectedColor});
   }
-  function startGame(seed){
+  function startGame(seed, problems){
     if(state==='PLAYING'&&!mathPending) return;
     sharedSeed=(Number(seed)>>>0)||1;
+    if(problems) sharedProblems=problems;
     state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
     buildInitialStairs(); snapCameraToPlayer();
     startScreen.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
@@ -322,6 +323,12 @@
     updateHUD(); setTimeout(()=>{actionLock=false;if(floor%25===0)openMath();},120);
   }
   function randomMath(){
+    // 같은 게임에 참여한 모든 학생은 서버가 정한 동일한 문제를 받는다.
+    const shared = sharedProblems && sharedProblems[floor];
+    if(shared && typeof shared.q==='string' && Number.isFinite(Number(shared.answer))){
+      return {q:shared.q, a:Number(shared.answer)};
+    }
+    // 예비 경로: 서버 문제표가 아직 도착하지 않은 경우에도 같은 seed로 동일한 문제가 생성된다.
     const rng=seededRng((sharedSeed ^ Math.imul(floor+1,0x9E3779B9))>>>0);
     const plus=rng()<0.5; const pairs=[];
     if(plus){for(let a=0;a<=10;a++)for(let b=0;b<=10-a;b++)pairs.push([a,b]);}
@@ -380,8 +387,8 @@
     }
   }
 
-  document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
-  document.getElementById('retryBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
+  document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(sharedSeed); });
+  const retryBtn=document.getElementById('retryBtn'); if(retryBtn) retryBtn.remove();
   document.getElementById('answerBtn').addEventListener('click',submitMath);
   answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
 
@@ -718,12 +725,15 @@
       embeddedHost=true; hostIsAdmin=!!d.isAdmin; localPlayerId=d.selfId||localPlayerId;
       if(Array.isArray(d.remotePlayers)) otherPlayers=Object.fromEntries(d.remotePlayers.map(p=>[p.id,p]));
       if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed;
-      setAdminView();
-      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame(sharedSeed);
+      if(d.mathProblems) sharedProblems=d.mathProblems;
+
+      // 최초 role 수신 시에만 대기/관리자 화면을 구성한다.
+      if(state!=='PLAYING') setAdminView();
+      if(d.gameState==='PLAYING' && !hostIsAdmin && state!=='PLAYING') startGame(sharedSeed, sharedProblems);
       return;
     }
     if(!embeddedHost || hostIsAdmin) return;
-    if(d.type==='start'){ startGame(d.mapSeed!=null?d.mapSeed:sharedSeed); return; }
+    if(d.type==='start'){ if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed; if(d.mathProblems) sharedProblems=d.mathProblems; startGame(sharedSeed, sharedProblems); return; }
     if(d.type==='players'){ otherPlayers=d.players||{}; return; }
     if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
   });

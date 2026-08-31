@@ -118,6 +118,7 @@ socket.on('initData', d => {
         safeDisplay('login-screen', 'none');
         myId = d.myId; isAdmin = d.isAdmin; mode = d.gameMode || 'LOBBY'; players = d.players || {};
         mathStairsSeed = d.mathStairsSeed ?? mathStairsSeed;
+        window._mathStairsProblems = d.mathStairsProblems || window._mathStairsProblems || null;
         isStudentRankVisible = d.isStudentRankVisible ?? true; 
         
         const lockBtn = $('lock-btn');
@@ -129,7 +130,7 @@ socket.on('initData', d => {
         if (isAdmin) { safeDisplay('admin-panel', 'flex'); updateUserListAdmin(); }
         updateMemoryReadyDisplay(d.settings);
         updateUI();
-        notifyMathStairsFrame();
+        notifyMathStairsFrame('role');
         // 수학의 계단은 서버의 mathStairsStart 신호로만 시작한다.
         // initData의 PLAYING 상태를 보고 중복 시작시키지 않는다.
     } catch(e) { console.error(e); }
@@ -327,18 +328,27 @@ function closeQR() {
 function notifyMathStairsFrame(action) {
     const frame = $('math-stairs-frame');
     if (!frame || !frame.contentWindow) return;
+
+    if (action === 'role') {
+        frame.contentWindow.postMessage({
+            source:'math-stairs',
+            type:'role',
+            isAdmin,
+            gameState: isGameRunning ? 'PLAYING' : 'WAITING',
+            mapSeed: mathStairsSeed,
+            mathProblems: window._mathStairsProblems || null,
+            remotePlayers: window._mathStairsPlayers || [],
+            selfId: myId
+        }, window.location.origin);
+        return;
+    }
+
     frame.contentWindow.postMessage({
         source:'math-stairs',
-        type:'role',
-        isAdmin,
-        gameState: isGameRunning ? 'PLAYING' : 'WAITING',
+        type: action,
         mapSeed: mathStairsSeed,
-        remotePlayers: window._mathStairsPlayers || [],
-        selfId: myId
+        mathProblems: window._mathStairsProblems || null
     }, window.location.origin);
-    if (action) {
-        frame.contentWindow.postMessage({ source:'math-stairs', type: action, mapSeed: mathStairsSeed }, window.location.origin);
-    }
 }
 
 window.addEventListener('message', (event) => {
@@ -346,7 +356,7 @@ window.addEventListener('message', (event) => {
     const d = event.data || {};
     if (d.source !== 'math-stairs') return;
     if (d.type === 'ready') {
-        notifyMathStairsFrame();
+        notifyMathStairsFrame('role');
     } else if (d.type === 'progress') {
         if (!isAdmin && mode.includes('MATHSTAIRS')) socket.emit('mathStairsProgress', { floor:d.floor, score:d.score, state:d.state, x:d.x, y:d.y, facing:d.facing, character:d.character, colorIndex:d.colorIndex });
     } else if (d.type === 'gameOver') {
@@ -359,12 +369,19 @@ window.addEventListener('message', (event) => {
 
 socket.on('mathStairsStart', d => {
     mathStairsSeed = d && d.mapSeed != null ? Number(d.mapSeed) >>> 0 : mathStairsSeed;
+    window._mathStairsProblems = d && d.mathProblems ? d.mathProblems : null;
     if (mode.includes('MATHSTAIRS') && !isAdmin) notifyMathStairsFrame('start');
 });
 
 socket.on('mathStairsPlayersUpdate', list => {
     window._mathStairsPlayers = Array.isArray(list) ? list : [];
-    notifyMathStairsFrame();
+    const frame = $('math-stairs-frame');
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage({
+        source:'math-stairs',
+        type:'players',
+        players: window._mathStairsPlayers
+    }, window.location.origin);
 });
 
 socket.on('liveRankUpdate', r => { const c = $('rank-content'); if(c) c.innerHTML = r; });

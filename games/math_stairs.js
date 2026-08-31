@@ -4,6 +4,7 @@ module.exports = {
         store.gameMode = 'MATHSTAIRS';
         store.data.mathStairsScores = {};
         store.data.mathStairsSeed = crypto.randomBytes(4).readUInt32LE(0) >>> 0;
+        store.data.mathStairsProblems = this.generateProblems(store.data.mathStairsSeed);
         Object.keys(store.players).forEach(id => {
             const p = store.players[id];
             if (!p.isAdmin) {
@@ -11,7 +12,11 @@ module.exports = {
                 store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'ready', character: 'circle', colorIndex: 0, x: 0, y: 0, facing: 1 };
             }
         });
-        store.io.emit('mathStairsStart', { timestamp: Date.now(), mapSeed: store.data.mathStairsSeed });
+        store.io.emit('mathStairsStart', {
+            timestamp: Date.now(),
+            mapSeed: store.data.mathStairsSeed,
+            mathProblems: store.data.mathStairsProblems
+        });
         this.updateRanking(store);
     },
     reset: function(store) {
@@ -32,10 +37,9 @@ module.exports = {
         const prev = store.data.mathStairsScores[socketId] || { floor: 1, score: 0, state: 'ready' };
         const floor = Math.max(1, Number(data && data.floor) || 1);
         const score = Math.max(0, Number(data && data.score) || 0);
-        // Client sends progress only; never let an accidental rollback reduce a student's visible rank.
-        const isPenalty = data && data.state === 'penalty';
-        const nextFloor = isPenalty ? floor : Math.max(prev.floor, floor);
-        const nextScore = isPenalty ? score : Math.max(prev.score, score);
+        // 서버에는 학생의 '현재 위치'를 그대로 반영한다. 수학 오답으로 15층 내려간 경우도 랭킹/친구 위치에 즉시 반영되어야 한다.
+        const nextFloor = floor;
+        const nextScore = score;
         store.data.mathStairsScores[socketId] = {
             floor: nextFloor,
             score: nextScore,
@@ -103,6 +107,32 @@ module.exports = {
         }).join('');
         store.io.emit('liveRankUpdate', rankText || "<div style='color:#ccc;text-align:center;'>대기 중...</div>");
         store.io.emit('mathStairsPlayersUpdate', entries.map(e => ({ id:e.id, name:e.name, floor:e.floor, score:e.score, state:e.state, character:e.character || 'circle', colorIndex:Number.isInteger(e.colorIndex)?e.colorIndex:0, x:e.x, y:e.y, facing:e.facing })));
+    },
+    generateProblems: function(seed) {
+        // 게임 시작 때 서버에서 한 번 생성하고 모든 학생에게 같은 문제 세트를 전달한다.
+        let t = (Number(seed) >>> 0) || 1;
+        const rand = () => {
+            t = (t + 0x6D2B79F5) >>> 0;
+            let r = Math.imul(t ^ (t >>> 15), 1 | t);
+            r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+            return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+        };
+        const problems = {};
+        for (let floor = 25; floor <= 10000; floor += 25) {
+            const plus = rand() < 0.5;
+            let a, b;
+            if (plus) {
+                a = Math.floor(rand() * 11);
+                b = Math.floor(rand() * (11 - a));
+            } else {
+                a = Math.floor(rand() * 11);
+                b = Math.floor(rand() * (a + 1));
+            }
+            problems[floor] = plus
+                ? { q: `${a} + ${b} = ?`, answer: a + b }
+                : { q: `${a} − ${b} = ?`, answer: a - b };
+        }
+        return problems;
     },
     endGame: function(store, logic) {
         const entries = Object.keys(store.players)

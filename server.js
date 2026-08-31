@@ -172,6 +172,7 @@ io.on('connection', (socket) => {
                 gameMode: safeGameMode, gameState: store.gameState, players: store.players, settings: store.settings, 
                 isStudentRankVisible: store.data.isStudentRankVisible,
                 mathStairsSeed: store.data.mathStairsSeed || null,
+                mathStairsProblems: store.data.mathStairsProblems || null,
                 isLocked: !!store.data.isLocked 
             });
             io.emit('updateUserList', store.players);
