@@ -16,7 +16,7 @@
   .stat{background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);padding:8px 12px;border-radius:12px;min-width:92px;box-shadow:0 5px 12px rgba(0,0,0,.18)}
   .stat small{display:block;font-size:11px;color:var(--muted)}
   .stat strong{display:block;font-size:20px;line-height:1.05;margin-top:2px}
-  .hpWrap{flex:1;background:rgba(17,24,39,.75);border:2px solid rgba(255,255,255,.22);padding:5px 6px;border-radius:12px}
+  .hpWrap{display:none}
   .hpBar{height:16px;border-radius:8px;overflow:hidden;background:#43262b}
   #hpFill{height:100%;width:100%;background:linear-gradient(90deg,#7fe28e,#e9dd63);transition:width .08s linear}
   .pause{pointer-events:auto;width:42px;height:42px;border-radius:12px;background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);font-size:19px}
@@ -298,10 +298,9 @@
   function notifyProfile(){
     notifyHost('profile',{character:CHARACTERS[selectedChar],colorIndex:selectedColor});
   }
-  function startGame(seed, problems){
+  function startGame(seed){
     if(state==='PLAYING'&&!mathPending) return;
     sharedSeed=(Number(seed)>>>0)||1;
-    if(problems) sharedProblems=problems;
     state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
     buildInitialStairs(); snapCameraToPlayer();
     startScreen.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
@@ -323,12 +322,6 @@
     updateHUD(); setTimeout(()=>{actionLock=false;if(floor%25===0)openMath();},120);
   }
   function randomMath(){
-    // 같은 게임에 참여한 모든 학생은 서버가 정한 동일한 문제를 받는다.
-    const shared = sharedProblems && sharedProblems[floor];
-    if(shared && typeof shared.q==='string' && Number.isFinite(Number(shared.answer))){
-      return {q:shared.q, a:Number(shared.answer)};
-    }
-    // 예비 경로: 서버 문제표가 아직 도착하지 않은 경우에도 같은 seed로 동일한 문제가 생성된다.
     const rng=seededRng((sharedSeed ^ Math.imul(floor+1,0x9E3779B9))>>>0);
     const plus=rng()<0.5; const pairs=[];
     if(plus){for(let a=0;a<=10;a++)for(let b=0;b<=10-a;b++)pairs.push([a,b]);}
@@ -387,8 +380,8 @@
     }
   }
 
-  document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(sharedSeed); });
-  const retryBtn=document.getElementById('retryBtn'); if(retryBtn) retryBtn.remove();
+  document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
+  document.getElementById('retryBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
   document.getElementById('answerBtn').addEventListener('click',submitMath);
   answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
 
@@ -522,7 +515,7 @@
       const p=worldToScreen(op.x,op.y),x=p.x,y=p.y-PLAYER_DRAW_OFFSET_Y;
       if(x<-70||x>W+70||y<-90||y>H+90) return;
       const ci=Number.isInteger(Number(op.colorIndex))?Number(op.colorIndex):0;
-      ctx.save(); ctx.globalAlpha=0.10; ctx.translate(x,y); ctx.scale(op.facing<0?-1:1,1);
+      ctx.save(); ctx.globalAlpha=0.30; ctx.translate(x,y); ctx.scale(op.facing<0?-1:1,1);
       drawCharacterShape(op.character||'circle',false,(COLORS[ci]||COLORS[0]).fill);
       ctx.restore(); ctx.globalAlpha=1;
     });
@@ -567,12 +560,53 @@
     ctx.translate(x, y);
     ctx.scale(facing, 1);
     // High-contrast outline so the character is always visible against any stair/background.
-    ctx.shadowColor='rgba(255,255,255,.78)';
-    ctx.shadowBlur=10;
+    ctx.shadowColor='rgba(255,255,255,.92)';
+    ctx.shadowBlur=12;
     drawCharacterShape(CHARACTERS[selectedChar], false);
     ctx.shadowColor='transparent';
     ctx.shadowBlur=0;
     ctx.restore();
+
+    // 캐릭터 머리 위에 작은 개인 게이지를 표시한다.
+    const gaugeW = 74, gaugeH = 8;
+    const gaugeX = x - gaugeW/2, gaugeY = y - 66;
+    ctx.save();
+    ctx.fillStyle='rgba(15,23,42,.88)';
+    ctx.strokeStyle='rgba(255,255,255,.9)';
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(gaugeX-2, gaugeY-2, gaugeW+4, gaugeH+4, 5); ctx.fill(); ctx.stroke();
+    const ratio = Math.max(0, Math.min(1, hp/100));
+    ctx.fillStyle = ratio < .3 ? '#fb7185' : (ratio < .55 ? '#f59e0b' : '#4ade80');
+    ctx.beginPath(); ctx.roundRect(gaugeX, gaugeY, gaugeW*ratio, gaugeH, 4); ctx.fill();
+    ctx.font='700 9px system-ui, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle='#ffffff';
+    ctx.strokeStyle='rgba(15,23,42,.9)'; ctx.lineWidth=3;
+    ctx.strokeText(`${Math.ceil(hp)}s`, x, gaugeY-3);
+    ctx.fillText(`${Math.ceil(hp)}s`, x, gaugeY-3);
+    ctx.restore();
+
+    // 바로 윗 순위 학생을 캐릭터 아래에 작게 표시한다.
+    const rankEntries = Object.values(otherPlayers)
+      .filter(op => op.id !== localPlayerId)
+      .map(op => ({...op, floor:Number(op.floor)||1, score:Number(op.score)||0}))
+      .sort((a,b) => b.floor-a.floor || b.score-a.score || String(a.name||'').localeCompare(String(b.name||'')));
+    const myRank = rankEntries.filter(op => op.floor > floor || (op.floor === floor && op.score > score)).length + 1;
+    const above = rankEntries.filter(op => op.floor > floor || (op.floor === floor && op.score > score))[0];
+    if(above){
+      const diff=Math.max(0, above.floor-floor);
+      ctx.save();
+      ctx.font='800 11px system-ui, sans-serif';
+      const label=`↑ ${above.name} · ${above.floor}층${diff>0?` (+${diff})`:''}`;
+      const tw=ctx.measureText(label).width+16;
+      const ly=y+52;
+      ctx.fillStyle='rgba(15,23,42,.86)';
+      ctx.strokeStyle='rgba(255,255,255,.62)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.roundRect(x-tw/2,ly-15,tw,20,7); ctx.fill(); ctx.stroke();
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#f8fafc'; ctx.fillText(label,x,ly-5);
+      ctx.restore();
+    }
   }
 
   function drawCharacterShape(kind, falling, colorOverride){
@@ -725,15 +759,12 @@
       embeddedHost=true; hostIsAdmin=!!d.isAdmin; localPlayerId=d.selfId||localPlayerId;
       if(Array.isArray(d.remotePlayers)) otherPlayers=Object.fromEntries(d.remotePlayers.map(p=>[p.id,p]));
       if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed;
-      if(d.mathProblems) sharedProblems=d.mathProblems;
-
-      // 최초 role 수신 시에만 대기/관리자 화면을 구성한다.
-      if(state!=='PLAYING') setAdminView();
-      if(d.gameState==='PLAYING' && !hostIsAdmin && state!=='PLAYING') startGame(sharedSeed, sharedProblems);
+      setAdminView();
+      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame(sharedSeed);
       return;
     }
     if(!embeddedHost || hostIsAdmin) return;
-    if(d.type==='start'){ if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed; if(d.mathProblems) sharedProblems=d.mathProblems; startGame(sharedSeed, sharedProblems); return; }
+    if(d.type==='start'){ startGame(d.mapSeed!=null?d.mapSeed:sharedSeed); return; }
     if(d.type==='players'){ otherPlayers=d.players||{}; return; }
     if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
   });
