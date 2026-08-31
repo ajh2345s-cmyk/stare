@@ -17,6 +17,8 @@ logic.resetGame = function(mode = 'LOBBY') {
         store.timerMain = null; store.timerTask = null;
 
         store.gameState = 'WAITING'; store.gameMode = mode;
+        store.data.gameStartPending = false;
+        store.data.mathStairsStarted = false;
         
         let currentRankVis = store.data && store.data.isStudentRankVisible !== undefined ? store.data.isStudentRankVisible : true;
         store.data = {};
@@ -46,6 +48,7 @@ logic.endGame = function(title, winners = [], msg = "", extraData = null) {
         if (store.timerTask) clearTimeout(store.timerTask);
         store.timerMain = null; store.timerTask = null;
         store.gameState = 'WAITING';
+        if (store.data) { store.data.gameStartPending = false; store.data.mathStairsStarted = false; }
         if (winners.length > 0) store.io.emit('finalVictory', { title, winners, customMsg: msg, extra: extraData });
         else store.io.emit('gameTerminated', { title: "게임 종료", message: msg || "기록 없음", extra: extraData });
     } catch (error) { console.error(error); }
@@ -54,6 +57,14 @@ logic.endGame = function(title, winners = [], msg = "", extraData = null) {
 logic.startGame = function() {
     try {
         if (store.gameState !== 'WAITING') return;
+        const studentCount = Object.values(store.players || {}).filter(p => p && !p.isAdmin && !p.isBot).length;
+        if (studentCount === 0) {
+            if (store.io) store.io.emit('adminWarning', '학생이 한 명 이상 입장해야 게임을 시작할 수 있습니다.');
+            return;
+        }
+        store.gameState = 'COUNTDOWN';
+        store.data = store.data || {};
+        store.data.gameStartPending = true;
         if (store.players) {
             Object.keys(store.players).forEach(id => {
                 if (store.players[id] && !store.players[id].isAdmin) {
@@ -70,6 +81,8 @@ logic.startGame = function() {
 
 logic.startGameLogic = function() {
     try {
+        if (store.gameState !== 'COUNTDOWN') return;
+        store.data.gameStartPending = false;
         store.gameState = 'PLAYING';
         const mode = store.gameMode || '';
         

@@ -95,6 +95,8 @@ io.on('connection', (socket) => {
                         gameMode: safeGameMode, gameState: store.gameState, players: store.players, settings: store.settings, 
                         isStudentRankVisible: store.data.isStudentRankVisible,
                         mathStairsSeed: store.data.mathStairsSeed || null,
+                        mathStairsProblems: store.data.mathStairsProblems || null,
+                        mathStairsStarted: !!store.data.mathStairsStarted,
                         isLocked: !!store.data.isLocked
                     });
                     io.emit('updateUserList', store.players);
@@ -173,6 +175,7 @@ io.on('connection', (socket) => {
                 isStudentRankVisible: store.data.isStudentRankVisible,
                 mathStairsSeed: store.data.mathStairsSeed || null,
                 mathStairsProblems: store.data.mathStairsProblems || null,
+                mathStairsStarted: !!store.data.mathStairsStarted,
                 isLocked: !!store.data.isLocked 
             });
             io.emit('updateUserList', store.players);
@@ -200,11 +203,11 @@ io.on('connection', (socket) => {
                 }
                 io.emit('updateUserList', store.players);
             }
-        } catch(e) {}
+        } catch(e) { console.error('[socket]', e); }
     });
 
-    socket.on('startGameSignal', () => { try { if (store.players[socket.id]?.isAdmin) logic.startGame(); } catch(e) {} });
-    socket.on('adminForceEnd', () => { try { if (store.players[socket.id]?.isAdmin) logic.forceEndGame(); } catch(e) {} });
+    socket.on('startGameSignal', () => { try { if (store.players[socket.id]?.isAdmin) logic.startGame(); } catch(e) { console.error('[socket]', e); } });
+    socket.on('adminForceEnd', () => { try { if (store.players[socket.id]?.isAdmin) logic.forceEndGame(); } catch(e) { console.error('[socket]', e); } });
     socket.on('adminForceRoundEnd', () => { logic.forceRoundEnd(socket.id); });
 
     socket.on('toggleLock', () => { 
@@ -213,7 +216,7 @@ io.on('connection', (socket) => {
                 store.data.isLocked = !store.data.isLocked; 
                 io.emit('lockStatus', store.data.isLocked); 
             } 
-        } catch(e) {} 
+        } catch(e) { console.error('[socket]', e); } 
     });
     
     socket.on('kickUser', (targetId) => { 
@@ -227,7 +230,7 @@ io.on('connection', (socket) => {
                 }
                 io.emit('updateUserList', store.players); 
             } 
-        } catch(e) {} 
+        } catch(e) { console.error('[socket]', e); } 
     });
 
     socket.on('toggleRankVisibility', () => {
@@ -236,7 +239,7 @@ io.on('connection', (socket) => {
                 store.data.isStudentRankVisible = !store.data.isStudentRankVisible;
                 io.emit('rankVisibilityUpdated', store.data.isStudentRankVisible);
             }
-        } catch(e) {}
+        } catch(e) { console.error('[socket]', e); }
     });
 
     const broadcastSettings = () => io.emit('settingsUpdated', store.settings);
@@ -269,26 +272,36 @@ io.on('connection', (socket) => {
                 else if (mode.includes('MISSING')) require('./games/missing').nextRound(store);
                 else if (mode.includes('MEMORY')) require('./games/memory').nextRound(store, logic);
             } 
-        } catch(e) {} 
+        } catch(e) { console.error('[socket]', e); } 
     });
 
-    socket.on('updownSubmit', (val) => { try { logic.handleUpdownInput(socket.id, val); } catch(e) {} });
-    socket.on('fiftyClick', (num) => { try { require('./games/fifty').handleInput(store, logic, socket.id, num); } catch(e) {} });
-    socket.on('bondSubmit', (ans) => { try { require('./games/bond').handleInput(store, logic, socket.id, ans); } catch(e) {} });
-    socket.on('wolfSubmit', (idx) => { try { require('./games/wolf').handleInput(store, logic, socket.id, idx); } catch(e) {} });
-    socket.on('missingSubmit', (choice) => { try { require('./games/missing').handleInput(store, logic, socket.id, choice); } catch(e) {} });
-    socket.on('memorySubmit', (action) => { try { require('./games/memory').handleInput(store, logic, socket.id, action); } catch(e) {} });
+    socket.on('updownSubmit', (val) => { try { logic.handleUpdownInput(socket.id, val); } catch(e) { console.error('[socket]', e); } });
+    socket.on('fiftyClick', (num) => { try { require('./games/fifty').handleInput(store, logic, socket.id, num); } catch(e) { console.error('[socket]', e); } });
+    socket.on('bondSubmit', (ans) => { try { require('./games/bond').handleInput(store, logic, socket.id, ans); } catch(e) { console.error('[socket]', e); } });
+    socket.on('wolfSubmit', (idx) => { try { require('./games/wolf').handleInput(store, logic, socket.id, idx); } catch(e) { console.error('[socket]', e); } });
+    socket.on('missingSubmit', (choice) => { try { require('./games/missing').handleInput(store, logic, socket.id, choice); } catch(e) { console.error('[socket]', e); } });
+    socket.on('memorySubmit', (action) => { try { require('./games/memory').handleInput(store, logic, socket.id, action); } catch(e) { console.error('[socket]', e); } });
 
 
-    socket.on('mathStairsProgress', (data) => { try { mathStairs.handleProgress(store, socket.id, data); } catch(e) {} });
-    socket.on('mathStairsGameOver', (data) => { try { mathStairs.handleGameOver(store, socket.id, data, logic); } catch(e) {} });
-    socket.on('mathStairsProfile', (data) => { try { mathStairs.handleProfile(store, socket.id, data); } catch(e) {} });
+    socket.on('mathStairsProgress', (data) => { try { mathStairs.handleProgress(store, socket.id, data); } catch(e) { console.error('[socket]', e); } });
+    socket.on('mathStairsGameOver', (data) => { try { mathStairs.handleGameOver(store, socket.id, data, logic); } catch(e) { console.error('[socket]', e); } });
+    socket.on('mathStairsProfile', (data) => { try { mathStairs.handleProfile(store, socket.id, data); } catch(e) { console.error('[socket]', e); } });
 
-    socket.on('disconnect', () => { 
-        try { 
-            io.emit('updateUserList', store.players); 
-        } catch(e) {} 
+    socket.on('disconnect', () => {
+        try {
+            const leaving = store.players[socket.id];
+            if (!leaving) return;
+            const wasAdmin = !!leaving.isAdmin;
+            delete store.players[socket.id];
+            for (const token in store.tokens) { if (store.tokens[token] === socket.id) delete store.tokens[token]; }
+            if (wasAdmin) store.adminId = null;
+            io.emit('updateUserList', store.players);
+            if (store.gameMode && String(store.gameMode).includes('MATHSTAIRS') && store.gameState === 'PLAYING') {
+                if (typeof mathStairs.handleDisconnect === 'function') mathStairs.handleDisconnect(store, socket.id);
+            }
+        } catch (e) { console.error('[disconnect]', e); }
     });
+
 });
 
 const PORT = process.env.PORT || 3000;

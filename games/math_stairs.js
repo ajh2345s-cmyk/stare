@@ -2,14 +2,16 @@ const crypto = require('crypto');
 module.exports = {
     run: function(store, logic) {
         store.gameMode = 'MATHSTAIRS';
+        store._logic = logic;
         store.data.mathStairsScores = {};
         store.data.mathStairsSeed = crypto.randomBytes(4).readUInt32LE(0) >>> 0;
         store.data.mathStairsProblems = this.generateProblems(store.data.mathStairsSeed);
+        store.data.mathStairsStarted = true;
         Object.keys(store.players).forEach(id => {
             const p = store.players[id];
             if (!p.isAdmin) {
                 p.isAlive = true;
-                store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'ready', character: 'circle', colorIndex: 0, x: 0, y: 0, facing: 1 };
+                store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'playing', character: 'circle', colorIndex: 0, x: 0, y: 0, facing: 1 };
             }
         });
         store.io.emit('mathStairsStart', {
@@ -31,6 +33,7 @@ module.exports = {
     },
     handleProgress: function(store, socketId, data) {
         if (store.gameState !== 'PLAYING') return;
+        if (store.data && store.data.mathStairsStarted !== true) return;
         const p = store.players[socketId];
         if (!p || p.isAdmin) return;
         store.data.mathStairsScores = store.data.mathStairsScores || {};
@@ -73,8 +76,8 @@ module.exports = {
         const score = Math.max(0, Number(data && data.score) || prev.score || 0);
         store.data.mathStairsScores[socketId] = {
             ...prev,
-            floor: Math.max(prev.floor || 1, floor),
-            score: Math.max(prev.score || 0, score),
+            floor,
+            score,
             state: 'gameover'
         };
         this.updateRanking(store);
@@ -87,6 +90,20 @@ module.exports = {
             if (logic && typeof logic.endGame === 'function') this.endGame(store, logic);
 
         }
+    },
+
+    handleDisconnect: function(store, socketId) {
+        const scores = store.data.mathStairsScores || {};
+        if (!scores[socketId]) return;
+        delete scores[socketId];
+        this.updateRanking(store);
+        const students = this.listActiveStudentIds(store);
+        if (students.length > 0 && students.every(id => scores[id] && scores[id].state === 'gameover')) {
+            this.endGame(store, store._logic || null);
+        }
+    },
+    listActiveStudentIds: function(store) {
+        return Object.keys(store.players).filter(id => !store.players[id].isAdmin);
     },
     updateRanking: function(store) {
         const entries = Object.keys(store.players)

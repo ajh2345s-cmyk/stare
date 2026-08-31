@@ -381,7 +381,7 @@
   }
 
   document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
-  document.getElementById('retryBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
+  const retryBtn=document.getElementById('retryBtn'); if(retryBtn) retryBtn.remove();
   document.getElementById('answerBtn').addEventListener('click',submitMath);
   answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
 
@@ -760,7 +760,6 @@
       if(Array.isArray(d.remotePlayers)) otherPlayers=Object.fromEntries(d.remotePlayers.map(p=>[p.id,p]));
       if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed;
       setAdminView();
-      if(d.gameState==='PLAYING' && !hostIsAdmin) startGame(sharedSeed);
       return;
     }
     if(!embeddedHost || hostIsAdmin) return;

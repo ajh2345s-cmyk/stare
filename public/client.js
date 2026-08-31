@@ -3,7 +3,8 @@ const $ = id => document.getElementById(id);
 
 let myId, isAdmin = false, mode = 'LOBBY', players = {};
 let isGameRunning = false;
-let mathStairsSeed = null; 
+let mathStairsSeed = null;
+let mathStairsStarted = false; 
 
 let updownBuffer = ""; let updownLock = true;
 let fiftyTarget = 1; let fiftyPenalty = false; 
@@ -118,6 +119,8 @@ socket.on('initData', d => {
         safeDisplay('login-screen', 'none');
         myId = d.myId; isAdmin = d.isAdmin; mode = d.gameMode || 'LOBBY'; players = d.players || {};
         mathStairsSeed = d.mathStairsSeed ?? mathStairsSeed;
+        mathStairsStarted = !!d.mathStairsStarted;
+        mathStairsStarted = !!d.mathStairsStarted;
         window._mathStairsProblems = d.mathStairsProblems || window._mathStairsProblems || null;
         isStudentRankVisible = d.isStudentRankVisible ?? true; 
         
@@ -254,6 +257,7 @@ socket.on('kicked', () => {
 });
 
 socket.on('hardReset', d => {
+    mathStairsStarted = false;
     mode = d.mode || 'LOBBY'; players = d.players || {}; isGameRunning = false; studentDoneMap = {};
     mathStairsSeed = null;
     safeText('updown-history', ''); updownBuffer = ""; safeText('updown-display', '0'); safeText('updown-feedback', 'START');
@@ -334,7 +338,7 @@ function notifyMathStairsFrame(action) {
             source:'math-stairs',
             type:'role',
             isAdmin,
-            gameState: isGameRunning ? 'PLAYING' : 'WAITING',
+            gameState: mathStairsStarted ? 'PLAYING' : 'WAITING',
             mapSeed: mathStairsSeed,
             mathProblems: window._mathStairsProblems || null,
             remotePlayers: window._mathStairsPlayers || [],
@@ -369,6 +373,8 @@ window.addEventListener('message', (event) => {
 
 socket.on('mathStairsStart', d => {
     mathStairsSeed = d && d.mapSeed != null ? Number(d.mapSeed) >>> 0 : mathStairsSeed;
+    mathStairsStarted = true;
+    mathStairsStarted = true;
     window._mathStairsProblems = d && d.mathProblems ? d.mathProblems : null;
     if (mode.includes('MATHSTAIRS') && !isAdmin) notifyMathStairsFrame('start');
 });
