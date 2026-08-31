@@ -592,12 +592,23 @@ socket.on('wolfStartRound', d => {
 function wolfClick(idx) {
     if(wolfLock || isAdmin) return;
     wolfLock = true;
-    socket.emit('wolfSubmit', idx); 
+    socket.emit('wolfSubmit', idx);
 }
 socket.on('wolfResult', d => {
-    wolfAnimals.forEach(a => { if(a.el) { a.el.innerText = (a.type === 'wolf') ? '🐺' : '🐑'; } });
-    if(d.correct) safeText('wolf-msg', '⭕ 정답입니다! 늑대를 찾았어요!');
-    else safeText('wolf-msg', '❌ 앗! 양이네요! 늑대는 여기 있었습니다!');
+    const complete = !!d.complete;
+    if(complete) {
+        wolfAnimals.forEach(a => { if(a.el) { a.el.innerText = (a.type === 'wolf') ? '🐺' : '🐑'; } });
+        if(d.correct && d.foundCount >= d.wolfCount) safeText('wolf-msg', `⭕ 정답입니다! 늑대 ${d.wolfCount}마리를 모두 찾았어요!`);
+        else if(d.correct) safeText('wolf-msg', '❌ 앗! 양을 골랐어요!');
+        else safeText('wolf-msg', '❌ 앗! 양이네요! 늑대는 여기 있었습니다!');
+        wolfLock = true;
+    } else if(d.correct) {
+        safeText('wolf-msg', `⭕ 늑대 발견! ${d.foundCount}/${d.wolfCount}마리`);
+        wolfLock = false;
+    } else {
+        safeText('wolf-msg', '❌ 앗! 양이네요! 늑대는 여기 있었습니다!');
+        wolfLock = true;
+    }
 });
 
 // --- [깜빡 퀴즈] ---

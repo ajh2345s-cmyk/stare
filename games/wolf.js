@@ -10,7 +10,7 @@ function gridForCount(count) {
 }
 
 function randomDerangement(count) {
-    if (count <= 1) return [0];
+    if (count <= 1) return Array.from({ length: count }, (_, i) => i);
     const arr = Array.from({ length: count }, (_, i) => i);
     for (let attempt = 0; attempt < 50; attempt++) {
         for (let i = arr.length - 1; i > 0; i--) {
@@ -23,15 +23,35 @@ function randomDerangement(count) {
     return arr.map((_, i) => (i + 1) % count);
 }
 
+function randomPartialPermutation(count) {
+    if (count <= 1) return Array.from({ length: count }, (_, i) => i);
+    const mapping = Array.from({ length: count }, (_, i) => i);
+    const moveAll = Math.random() < 0.28;
+    let movedCount = moveAll ? count : Math.max(2, Math.min(count, Math.round(count * (0.35 + Math.random() * 0.65))));
+    if (count === 2) movedCount = 2;
+    const moved = Array.from({ length: count }, (_, i) => i);
+    for (let i = moved.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [moved[i], moved[j]] = [moved[j], moved[i]];
+    }
+    const active = moved.slice(0, movedCount);
+    const perm = randomDerangement(active.length);
+    active.forEach((from, i) => {
+        mapping[from] = active[perm[i]];
+    });
+    return mapping;
+}
+
 module.exports = {
     run: function(store, logic) {
         store.gameMode = 'WOLF';
         store.data.wolfScores = {};
         store.data.wolfStatus = {};
+        store.data.wolfFound = {};
         store.data.wolfRound = 0;
         store.data.currentWolfTargets = [];
-        const sheepCount = clampInt(store.settings.wolfSheepCount, 3, 60, 8);
-        const wolfCount = clampInt(store.settings.wolfCount, 1, Math.min(10, sheepCount - 1), 1);
+        const sheepCount = clampInt(store.settings.wolfSheepCount, 1, 60, 8);
+        const wolfCount = clampInt(store.settings.wolfCount, 1, Math.min(10, sheepCount + 1), 1);
         store.settings.wolfSheepCount = sheepCount;
         store.settings.wolfCount = wolfCount;
 
@@ -41,6 +61,7 @@ module.exports = {
                 p.isAlive = true;
                 store.data.wolfScores[id] = 0;
                 store.data.wolfStatus[id] = null;
+                store.data.wolfFound[id] = [];
             }
         });
         store.io.emit('updateUserList', store.players);
@@ -50,11 +71,14 @@ module.exports = {
     nextRound: function(store) {
         store.data.wolfRound++;
         Object.keys(store.players).forEach(id => {
-            if (!store.players[id].isAdmin) store.data.wolfStatus[id] = null;
+            if (!store.players[id].isAdmin) {
+                store.data.wolfStatus[id] = null;
+                store.data.wolfFound[id] = [];
+            }
         });
 
-        const sheepCount = clampInt(store.settings.wolfSheepCount, 3, 60, 8);
-        const wolfCount = clampInt(store.settings.wolfCount, 1, Math.min(10, sheepCount - 1), 1);
+        const sheepCount = clampInt(store.settings.wolfSheepCount, 1, 60, 8);
+        const wolfCount = clampInt(store.settings.wolfCount, 1, Math.min(10, sheepCount + 1), 1);
         const total = sheepCount + wolfCount;
         const targets = [];
         while (targets.length < wolfCount) {
@@ -68,14 +92,20 @@ module.exports = {
         const shuffles = clampInt(store.settings.wolfShuffles, 1, 50, 15);
         const grid = gridForCount(total);
         const shuffleSteps = [];
-
         for (let k = 0; k < shuffles; k++) {
-            shuffleSteps.push(randomDerangement(total));
+            shuffleSteps.push(randomPartialPermutation(total));
         }
+
+        let finalTargets = targets.slice();
+        for (const mapping of shuffleSteps) {
+            finalTargets = finalTargets.map(pos => mapping[pos]).sort((a,b) => a-b);
+        }
+        store.data.currentWolfTargets = finalTargets;
 
         store.io.emit('wolfStartRound', {
             round: store.data.wolfRound,
             targets,
+            finalTargets,
             speed,
             shuffles,
             animalCount: total,
@@ -95,16 +125,26 @@ module.exports = {
 
         const targets = Array.isArray(store.data.currentWolfTargets) ? store.data.currentWolfTargets : [];
         const selected = Number.parseInt(index, 10);
-        const correct = targets.includes(selected);
+        if (!Number.isInteger(selected) || selected < 0) return;
 
-        if (correct) {
-            store.data.wolfScores[socketId]++;
-            store.data.wolfStatus[socketId] = 'correct';
-        } else {
+        store.data.wolfFound[socketId] = Array.isArray(store.data.wolfFound[socketId]) ? store.data.wolfFound[socketId] : [];
+        if (store.data.wolfFound[socketId].includes(selected)) return;
+
+        const isWolf = targets.includes(selected);
+        if (!isWolf) {
             store.data.wolfStatus[socketId] = 'wrong';
+            store.io.to(socketId).emit('wolfResult', { correct: false, complete: true, foundCount: store.data.wolfFound[socketId].length, wolfCount: targets.length, targets });
+        } else {
+            store.data.wolfFound[socketId].push(selected);
+            const foundCount = store.data.wolfFound[socketId].length;
+            const complete = foundCount >= targets.length;
+            if (complete) {
+                store.data.wolfScores[socketId]++;
+                store.data.wolfStatus[socketId] = 'correct';
+            }
+            store.io.to(socketId).emit('wolfResult', { correct: true, complete, foundCount, wolfCount: targets.length, targets });
         }
 
-        store.io.to(socketId).emit('wolfResult', { correct, targets });
         this.updateAdminStatus(store);
         this.updateRanking(store);
 

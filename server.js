@@ -212,7 +212,16 @@ io.on('connection', (socket) => {
         } catch(e) { console.error('[socket]', e); }
     });
 
-    socket.on('startGameSignal', () => { try { if (store.players[socket.id]?.isAdmin) logic.startGame(); } catch(e) { console.error('[socket]', e); } });
+    socket.on('startGameSignal', () => {
+        try {
+            if (!store.players[socket.id]?.isAdmin) return;
+            if ((store.gameMode || '').includes('WOLF') && Number.parseInt(store.settings.wolfCount, 10) === 0) {
+                socket.emit('adminWarning', '늑대가 0마리라 게임을 시작할 수 없습니다. 늑대 마리수를 1마리 이상으로 설정하세요.');
+                return;
+            }
+            logic.startGame();
+        } catch(e) { console.error('[socket]', e); }
+    });
     socket.on('adminForceEnd', () => { try { if (store.players[socket.id]?.isAdmin) logic.forceEndGame(); } catch(e) { console.error('[socket]', e); } });
     socket.on('adminForceRoundEnd', () => { logic.forceRoundEnd(socket.id); });
 
@@ -254,8 +263,10 @@ io.on('connection', (socket) => {
     socket.on('setFiftySettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.fiftyMode = data.mode; store.settings.fiftyTargetId = data.targetId; broadcastSettings(); } });
     socket.on('setWolfSettings', (data) => {
         if (!store.players[socket.id]?.isAdmin) return;
-        const sheepCount = Math.max(3, Math.min(60, Number.parseInt(data?.sheepCount, 10) || 8));
-        const wolfCount = Math.max(1, Math.min(10, Number.parseInt(data?.wolfCount, 10) || 1));
+        const rawSheep = Number.parseInt(data?.sheepCount, 10);
+        const rawWolf = Number.parseInt(data?.wolfCount, 10);
+        const sheepCount = Number.isFinite(rawSheep) ? Math.max(1, Math.min(60, rawSheep)) : 8;
+        const wolfCount = Number.isFinite(rawWolf) ? Math.max(0, Math.min(10, rawWolf)) : 1;
         const speed = Math.max(1, Math.min(10, Number.parseInt(data?.speed, 10) || 5));
         const shuffles = Math.max(1, Math.min(50, Number.parseInt(data?.shuffles, 10) || 15));
         store.settings.wolfSheepCount = sheepCount;

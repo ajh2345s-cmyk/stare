@@ -97,7 +97,7 @@
         <div class="mathTitle">🎯 <span id="checkpointText">25층</span> 도착!</div>
         <div style="font-size:14px;color:#9fb0c6">문제를 맞히면 그대로 계속 올라갑니다.</div>
         <div class="mathTimerWrap">
-          <div class="mathTimerTop"><span>문제 제한시간</span><strong id="mathTimerText">7.0초</strong></div>
+          <div class="mathTimerTop"><span>문제 제한시간</span><strong id="mathTimerText">10.0초</strong></div>
           <div class="mathTimerTrack"><div class="mathTimerFill" id="mathTimerFill"></div></div>
         </div>
         <div class="problem" id="problemText">3 + 4 = ?</div>
@@ -213,7 +213,16 @@
   let mathPending=false;
   let currentProblem=null;
   let mathTimeLeft=7.0;
-  function mathTimeLimitForFloor(f){ return Math.max(0.5, 5 - Math.floor(Math.max(0, f) / 50)); }
+  function mathTimeLimitForFloor(){ return 10; }
+  function stairGaugeSecondsForFloor(f){
+    const n=Math.max(1, Number(f)||1);
+    if(n>=250) return 0.5;
+    if(n>=200) return 1;
+    if(n>=150) return 2;
+    if(n>=100) return 3;
+    if(n>=50) return 4;
+    return 5;
+  }
   let MATH_TIME_LIMIT=5.0;
   let mathTimeoutHandled=false;
   let visualFall=0;
@@ -310,15 +319,15 @@
     notifyHost('progress',{floor,score,state:'playing',x:player.x,y:player.y,facing,character:CHARACTERS[selectedChar],colorIndex:selectedColor});
   }
   function updateHUD(){ floorText.textContent=floor; bestText.textContent=best; }
-  function levelDrainPerSec(){ return BASE_HP_DRAIN+Math.min(9.5,floor*0.045); }
-  function regenPerStep(){ return Math.max(6.0,7.2-Math.min(1.2,floor*0.004)); }
+  function levelDrainPerSec(){ return 100 / stairGaugeSecondsForFloor(floor); }
+  function regenPerStep(){ return 100; }
   function isCorrectDestination(next,movementDir){ const dx=next.x-player.x; return (movementDir>0&&dx>0)||(movementDir<0&&dx<0); }
   function performAction(turn){
     if(state!=='PLAYING'||paused||mathPending||actionLock) return;
     ensureStepsAhead(); const next=steps[floor]; const moveDir=turn?-facing:facing; if(turn) facing*=-1;
     actionLock=true; player.fromX=player.x; player.fromY=player.y; player.targetX=next.x; player.targetY=next.y; player.anim=0;
     if(!isCorrectDestination(next,moveDir)){ visualFall=1; setTimeout(()=>gameOver(),260); return; }
-    floor++; score++; hp=Math.min(100,hp+regenPerStep()); ensureStepsAhead();
+    floor++; score++; hp=100; ensureStepsAhead();
     if(floor>best){best=floor; localStorage.setItem('mathStairsBest',String(best));}
     notifyHost('progress',{floor,score,state:'playing',x:next.x,y:next.y,facing,character:CHARACTERS[selectedChar],colorIndex:selectedColor});
     updateHUD(); setTimeout(()=>{actionLock=false;if(floor%25===0)openMath();},120);
@@ -335,7 +344,7 @@
   }
 
   function openMath(){
-    mathPending=true; MATH_TIME_LIMIT=mathTimeLimitForFloor(floor); mathTimeLeft=MATH_TIME_LIMIT; mathTimeoutHandled=false; currentProblem=randomMath();
+    mathPending=true; MATH_TIME_LIMIT=10; mathTimeLeft=MATH_TIME_LIMIT; mathTimeoutHandled=false; currentProblem=randomMath();
     document.getElementById('checkpointText').textContent=floor+'층';
     problemText.textContent=currentProblem.q;
     feedback.textContent='';
@@ -586,8 +595,8 @@
     ctx.textAlign='center'; ctx.textBaseline='bottom';
     ctx.fillStyle='#ffffff';
     ctx.strokeStyle='rgba(15,23,42,.9)'; ctx.lineWidth=3;
-    ctx.strokeText(`${Math.ceil(hp)}s`, x, gaugeY-3);
-    ctx.fillText(`${Math.ceil(hp)}s`, x, gaugeY-3);
+    ctx.strokeText(`${(hp/100*stairGaugeSecondsForFloor(floor)).toFixed(1)}s`, x, gaugeY-3);
+    ctx.fillText(`${(hp/100*stairGaugeSecondsForFloor(floor)).toFixed(1)}s`, x, gaugeY-3);
     ctx.restore();
 
     // 바로 윗 순위 학생을 캐릭터 아래에 작게 표시한다.
