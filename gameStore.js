@@ -45,6 +45,8 @@ module.exports = {
         // --- 새로 추가된 게임 설정 ---
         wolfSpeed: 5,
         wolfShuffles: 15,
+        wolfSheepCount: 8,
+        wolfCount: 1,
         missingCategory: 'animal',
         missingSpeed: 10,
         missingCount: 5,

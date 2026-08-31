@@ -91,7 +91,7 @@ function toggleFiftyTargetSelect() {
     $('fifty-target-label').style.display = isBeat ? 'block' : 'none';
     $('fifty-target-select').style.display = isBeat ? 'block' : 'none';
 }
-function updateWolfSettings() { socket.emit('setWolfSettings', { count: parseInt($('wolf-cnt').value), speed: parseInt($('wolf-speed').value), shuffles: parseInt($('wolf-shuffles').value) }); }
+function updateWolfSettings() { socket.emit('setWolfSettings', { sheepCount: parseInt($('wolf-sheep-cnt').value), wolfCount: parseInt($('wolf-cnt').value), speed: parseInt($('wolf-speed').value), shuffles: parseInt($('wolf-shuffles').value) }); }
 function updateMissingSettings() { socket.emit('setMissingSettings', { category: $('missing-cat').value, speed: parseInt($('missing-spd').value), count: parseInt($('missing-cnt').value), optionCount: parseInt($('missing-opt').value) }); }
 function updateMemorySettings() { socket.emit('setMemorySettings', { count: parseInt($('memory-cnt').value) }); }
 
@@ -517,88 +517,76 @@ socket.on('bondWrong', () => { safeText('bond-msg', '❌ 오답! 다음 문제�
 
 // --- [늑대를 찾아라] ---
 let wolfAnimals = [];
-const getWolfPositions = (count) => {
+let wolfGrid = { cols: 3, rows: 1 };
+const getWolfPositions = (count, cols, rows) => {
     const stg = $('wolf-stage'); if(!stg) return [];
     const w = stg.offsetWidth; const h = stg.offsetHeight;
-    let cols = 3; if (count === 4) cols = 2; 
-    let rows = Math.ceil(count / cols);
-    let aW = window.innerWidth <= 600 ? 50 : 80;
-    if (window.matchMedia("(max-height: 500px) and (orientation: landscape)").matches) aW = 40;
-
-    let arr = [];
+    const cellW = w / cols; const cellH = h / rows;
+    const minCell = Math.max(32, Math.min(cellW, cellH));
+    const size = Math.max(28, Math.min(82, minCell * 0.62));
+    const arr = [];
     for(let i=0; i<count; i++) {
-        let col = i % cols; let row = Math.floor(i / cols);
-        let cellW = w / cols; let cellH = h / rows;
-        arr.push({ x: (col * cellW) + (cellW / 2) - (aW / 2), y: (row * cellH) + (cellH / 2) - (aW / 2) });
+        const col = i % cols, row = Math.floor(i / cols);
+        arr.push({ x: col * cellW + (cellW-size)/2, y: row * cellH + (cellH-size)/2, size });
     }
     return arr;
 };
 
 socket.on('wolfStartRound', d => {
-    clearStatusBoard();
-    wolfLock = true;
-    
+    clearStatusBoard(); wolfLock = true;
     const count = d.animalCount || 3;
+    wolfGrid = { cols: d.gridCols || Math.ceil(Math.sqrt(count)), rows: d.gridRows || Math.ceil(count / (d.gridCols || Math.ceil(Math.sqrt(count)))) };
     const stg = $('wolf-stage'); if(stg) stg.innerHTML = '';
     wolfAnimals = [];
-    wolfPositions = getWolfPositions(count);
+    wolfPositions = getWolfPositions(count, wolfGrid.cols, wolfGrid.rows);
+    const targets = new Set(Array.isArray(d.targets) ? d.targets : [d.target]);
 
     for(let i=0; i<count; i++) {
-        const el = document.createElement('div'); el.className = 'animal'; el.id = 'animal' + i;
-        el.innerText = (i === d.target) ? '🐺' : '🐑'; el.onclick = () => wolfClick(i);
+        const el = document.createElement('div'); el.className = 'animal'; el.id = 'animal'+i;
+        el.innerText = targets.has(i) ? '🐺' : '🐑'; el.onclick = () => wolfClick(i);
         el.style.left = wolfPositions[i].x + 'px'; el.style.top = wolfPositions[i].y + 'px';
+        el.style.width = wolfPositions[i].size + 'px'; el.style.height = wolfPositions[i].size + 'px';
+        el.style.fontSize = Math.max(24, wolfPositions[i].size * 0.74) + 'px';
         if(stg) stg.appendChild(el);
-        wolfAnimals.push({ el: el, type: (i===d.target)?'wolf':'sheep', pos: i, originalIdx: i }); 
+        wolfAnimals.push({ el, type: targets.has(i) ? 'wolf' : 'sheep', pos: i, originalIdx: i });
     }
 
-    safeText('wolf-msg', `[ROUND ${d.round}] 늑대의 위치를 확인하세요!`);
+    safeText('wolf-msg', `[ROUND ${d.round}] 늑대 ${d.wolfCount}마리를 기억하세요!`);
 
     setTimeout(() => {
-        const wolf = wolfAnimals.find(a => a.type === 'wolf');
-        if(wolf && wolf.el) wolf.el.innerText = '🐑';
-        safeText('wolf-msg', '늑대가 양으로 변신했습니다! (1초 후 섞입니다)');
-        
+        wolfAnimals.forEach(a => { if(a.el) a.el.innerText = '🐑'; });
+        safeText('wolf-msg', '늑대가 양으로 변했습니다! 곧 섞입니다.');
+
         setTimeout(() => {
-            safeText('wolf-msg', '잘 섞이는 중...');
-            let shuffleCount = 0; let speedMs = 1000 - (d.speed * 90);
+            safeText('wolf-msg', '모두 동시에 이동합니다...');
+            const speedMs = Math.max(180, 1050 - ((d.speed || 5) * 75));
+            let shuffleCount = 0;
 
             function doShuffle() {
-                if (shuffleCount >= d.shuffles) {
+                if (shuffleCount >= (d.shuffles || 15)) {
                     safeText('wolf-msg', '늑대는 어디 있을까요? 클릭하세요!');
                     wolfLock = false; return;
                 }
-                
-                // [핵심 수정] 클라이언트 맘대로 섞지 않고, 서버가 준 정확한 지시도(d.shuffleSteps)를 그대로 따라감!
-                const step = d.shuffleSteps[shuffleCount];
-                
-                let a1 = wolfAnimals.find(a => a.pos === step.p1);
-                let a2 = wolfAnimals.find(a => a.pos === step.p2);
-                
-                if (a1 && a2) {
-                    a1.pos = step.p2;
-                    a2.pos = step.p1;
-                }
+                const mapping = Array.isArray(d.shuffleSteps?.[shuffleCount]) ? d.shuffleSteps[shuffleCount] : null;
+                if (!mapping) { wolfLock = false; return; }
 
-                wolfAnimals.forEach(a => {
+                // 모든 동물이 같은 순간에 하나씩 목표 칸으로 이동한다.
+                const nextPosByAnimal = wolfAnimals.map(a => mapping[a.pos] ?? a.pos);
+                wolfAnimals.forEach((a, idx) => {
                     if(!a.el) return;
-                    const endPos = wolfPositions[a.pos];
-                    a.el.style.zIndex = Math.floor(Math.random() * 100); 
-                    
-                    if(step.isPara) {
-                        a.el.style.transition = 'none';
-                        const startX = parseFloat(a.el.style.left || 0); const startY = parseFloat(a.el.style.top || 0);
-                        const midX = (startX + endPos.x)/2; const midY = (startY + endPos.y)/2 - 60; 
-                        a.el.animate([ { left: startX+'px', top: startY+'px', transform: 'scale(1)' }, { left: midX+'px', top: midY+'px', transform: 'scale(1.2)' }, { left: endPos.x+'px', top: endPos.y+'px', transform: 'scale(1)' } ], { duration: speedMs*0.9, easing: 'ease-in-out' });
-                    } else {
-                        a.el.style.transition = `left ${speedMs*0.9}ms ease-in-out, top ${speedMs*0.9}ms ease-in-out`;
-                    }
-                    a.el.style.left = endPos.x + 'px'; a.el.style.top = endPos.y + 'px';
+                    const end = wolfPositions[nextPosByAnimal[idx]];
+                    a.el.style.transition = `left ${speedMs*0.88}ms cubic-bezier(.2,.8,.2,1), top ${speedMs*0.88}ms cubic-bezier(.2,.8,.2,1), transform ${speedMs*0.44}ms ease-in-out`;
+                    a.el.style.transform = 'scale(1.08)';
+                    a.el.style.left = end.x + 'px'; a.el.style.top = end.y + 'px';
                 });
-                shuffleCount++; setTimeout(doShuffle, speedMs);
+                setTimeout(() => {
+                    wolfAnimals.forEach((a, idx) => { a.pos = nextPosByAnimal[idx]; if(a.el) a.el.style.transform='scale(1)'; });
+                    shuffleCount++; doShuffle();
+                }, speedMs*0.9);
             }
             doShuffle();
-        }, 1000); 
-    }, 1500); 
+        }, 850);
+    }, 1200);
 });
 
 function wolfClick(idx) {

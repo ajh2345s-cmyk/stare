@@ -209,7 +209,7 @@
                 <div id="setting-row-bond" style="display:none; margin-top:10px;"><button class="admin-btn" onclick="openSettings()" style="background:#2d3436; border:1px solid #aaa;">⚙️ 문제 상세설정</button></div>
 
                 <div id="setting-row-wolf" style="display:none;">
-                    <div class="admin-setting-grid"><label>총 마리수</label><input type="number" id="wolf-cnt" value="3" min="3" max="12" onchange="updateWolfSettings()"><label>이동 속도</label><input type="number" id="wolf-speed" value="5" onchange="updateWolfSettings()"><label>섞는 횟수</label><input type="number" id="wolf-shuffles" value="15" onchange="updateWolfSettings()"></div>
+                    <div class="admin-setting-grid"><label>양 마리수</label><input type="number" id="wolf-sheep-cnt" value="8" min="3" max="60" onchange="updateWolfSettings()"><label>늑대 마리수</label><input type="number" id="wolf-cnt" value="1" min="1" max="10" onchange="updateWolfSettings()"><label>이동 속도</label><input type="number" id="wolf-speed" value="5" min="1" max="10" onchange="updateWolfSettings()"><label>섞는 횟수</label><input type="number" id="wolf-shuffles" value="15" min="1" max="50" onchange="updateWolfSettings()"></div>
                 </div>
 
                 <div id="setting-row-missing" style="display:none;">

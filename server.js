@@ -9,7 +9,11 @@ const mathStairs = require('./games/math_stairs');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+    reconnection: true,
+    pingInterval: 10000,
+    pingTimeout: 20000
+});
 
 store.io = io;
 store.tokens = store.tokens || {}; 
@@ -43,7 +47,7 @@ store.data = store.data || {};
 store.settings = { 
     updownMax: 100, bondMode: 'MIX', bondRanges: ['9'], bondDisplay: 'NUM',
     fiftyMode: 'NORMAL', fiftyTargetId: null,
-    wolfSpeed: 5, wolfShuffles: 15, wolfCount: 3, 
+    wolfSpeed: 5, wolfShuffles: 15, wolfCount: 1, wolfSheepCount: 8, 
     missingCategory: 'animal', missingSpeed: 10, missingCount: 5, missingOptionCount: 4,
     memoryCount: 4
 };
@@ -73,7 +77,9 @@ io.on('connection', (socket) => {
                 
                 if (oldId && store.players[oldId]) {
                     store.players[socket.id] = store.players[oldId];
-                    store.players[socket.id].id = socket.id; 
+                    store.players[socket.id].id = socket.id;
+                    store.players[socket.id].connected = true;
+                    store.players[socket.id].disconnectedAt = null;
                     delete store.players[oldId]; 
 
                     if (store.players[socket.id].isAdmin) {
@@ -124,7 +130,7 @@ io.on('connection', (socket) => {
                 });
 
                 store.adminId = socket.id;
-                store.players[socket.id] = { id: socket.id, name: nickname || '선생님', isAdmin: true, isBot: false, isAlive: true };
+                store.players[socket.id] = { id: socket.id, name: nickname || '선생님', isAdmin: true, isBot: false, isAlive: true, connected: true, disconnectedAt: null };
 
                 const newToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
                 store.tokens[newToken] = socket.id;
@@ -132,7 +138,7 @@ io.on('connection', (socket) => {
 
             } else {
                 if (store.data.isLocked) { socket.emit('joinError', '입장 제한'); return; }
-                store.players[socket.id] = { id: socket.id, name: nickname, isAdmin: false, isAlive: true };
+                store.players[socket.id] = { id: socket.id, name: nickname, isAdmin: false, isAlive: true, connected: true, disconnectedAt: null };
 
                 const p = store.players[socket.id];
                 p.updownFinished = false; p.updownAttempts = 0;
@@ -246,7 +252,18 @@ io.on('connection', (socket) => {
     socket.on('setUpdownMax', (max) => { if (store.players[socket.id]?.isAdmin) { store.settings.updownMax = max; broadcastSettings(); } });
     socket.on('setBondSettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.bondMode = data.mode; store.settings.bondRanges = data.ranges; store.settings.bondDisplay = data.display; broadcastSettings(); } });
     socket.on('setFiftySettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.fiftyMode = data.mode; store.settings.fiftyTargetId = data.targetId; broadcastSettings(); } });
-    socket.on('setWolfSettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.wolfCount = data.count; store.settings.wolfSpeed = data.speed; store.settings.wolfShuffles = data.shuffles; broadcastSettings(); } });
+    socket.on('setWolfSettings', (data) => {
+        if (!store.players[socket.id]?.isAdmin) return;
+        const sheepCount = Math.max(3, Math.min(60, Number.parseInt(data?.sheepCount, 10) || 8));
+        const wolfCount = Math.max(1, Math.min(10, Number.parseInt(data?.wolfCount, 10) || 1));
+        const speed = Math.max(1, Math.min(10, Number.parseInt(data?.speed, 10) || 5));
+        const shuffles = Math.max(1, Math.min(50, Number.parseInt(data?.shuffles, 10) || 15));
+        store.settings.wolfSheepCount = sheepCount;
+        store.settings.wolfCount = wolfCount;
+        store.settings.wolfSpeed = speed;
+        store.settings.wolfShuffles = shuffles;
+        broadcastSettings();
+    });
     socket.on('setMissingSettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.missingCategory = data.category; store.settings.missingSpeed = data.speed; store.settings.missingCount = data.count; store.settings.missingOptionCount = data.optionCount; broadcastSettings(); } });
     socket.on('setMemorySettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.memoryCount = data.count; broadcastSettings(); } });
 
@@ -291,14 +308,13 @@ io.on('connection', (socket) => {
         try {
             const leaving = store.players[socket.id];
             if (!leaving) return;
-            const wasAdmin = !!leaving.isAdmin;
-            delete store.players[socket.id];
-            for (const token in store.tokens) { if (store.tokens[token] === socket.id) delete store.tokens[token]; }
-            if (wasAdmin) store.adminId = null;
+            // 학교 태블릿의 일시적인 네트워크 끊김을 대비해 학생/토큰/점수를 즉시 삭제하지 않는다.
+            // 같은 토큰으로 재접속하면 기존 플레이어와 게임 상태를 그대로 복구한다.
+            leaving.connected = false;
+            leaving.disconnectedAt = Date.now();
+            leaving.id = socket.id;
+            if (leaving.isAdmin) store.adminId = null;
             io.emit('updateUserList', store.players);
-            if (store.gameMode && String(store.gameMode).includes('MATHSTAIRS') && store.gameState === 'PLAYING') {
-                if (typeof mathStairs.handleDisconnect === 'function') mathStairs.handleDisconnect(store, socket.id);
-            }
         } catch (e) { console.error('[disconnect]', e); }
     });
 

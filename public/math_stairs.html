@@ -167,8 +167,8 @@
   const feedback = document.getElementById('feedback');
   const keypad = document.getElementById('keypad');
 
-  const CHARACTERS = ['circle','square','triangle'];
-  const CHAR_NAMES = {circle:'동그라미', square:'네모', triangle:'세모'};
+  const CHARACTERS = ['circle','square','triangle','star'];
+  const CHAR_NAMES = {circle:'동그라미', square:'네모', triangle:'세모', star:'별'};
   let selectedChar = 0;
   const COLORS = [
     {name:'파랑', fill:'#38bdf8'},
@@ -213,7 +213,8 @@
   let mathPending=false;
   let currentProblem=null;
   let mathTimeLeft=7.0;
-  const MATH_TIME_LIMIT=7.0;
+  function mathTimeLimitForFloor(f){ return Math.max(0.5, 5 - Math.floor(Math.max(0, f) / 50)); }
+  let MATH_TIME_LIMIT=5.0;
   let mathTimeoutHandled=false;
   let visualFall=0;
   let sharedSeed=0;
@@ -250,6 +251,7 @@
     if(CHARACTERS[selectedChar]==='circle') div.style.background=COLORS[selectedColor].fill;
     if(CHARACTERS[selectedChar]==='square') div.style.background=COLORS[selectedColor].fill;
     if(CHARACTERS[selectedChar]==='triangle') div.style.borderBottomColor=COLORS[selectedColor].fill;
+    if(CHARACTERS[selectedChar]==='star') { div.style.background=COLORS[selectedColor].fill; div.style.clipPath='polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 92%,50% 70%,21% 92%,32% 57%,2% 35%,39% 35%)'; }
     charPreview.appendChild(div);
     charName.textContent=CHAR_NAMES[CHARACTERS[selectedChar]]+' · '+COLORS[selectedColor].name;
     renderColorChoices();
@@ -322,6 +324,8 @@
     updateHUD(); setTimeout(()=>{actionLock=false;if(floor%25===0)openMath();},120);
   }
   function randomMath(){
+    const shared = window._mathStairsProblems && window._mathStairsProblems[floor];
+    if(shared && typeof shared.q === 'string' && Number.isFinite(Number(shared.answer))) return { q: shared.q, a: Number(shared.answer) };
     const rng=seededRng((sharedSeed ^ Math.imul(floor+1,0x9E3779B9))>>>0);
     const plus=rng()<0.5; const pairs=[];
     if(plus){for(let a=0;a<=10;a++)for(let b=0;b<=10-a;b++)pairs.push([a,b]);}
@@ -331,7 +335,7 @@
   }
 
   function openMath(){
-    mathPending=true; mathTimeLeft=MATH_TIME_LIMIT; mathTimeoutHandled=false; currentProblem=randomMath();
+    mathPending=true; MATH_TIME_LIMIT=mathTimeLimitForFloor(floor); mathTimeLeft=MATH_TIME_LIMIT; mathTimeoutHandled=false; currentProblem=randomMath();
     document.getElementById('checkpointText').textContent=floor+'층';
     problemText.textContent=currentProblem.q;
     feedback.textContent='';
@@ -645,6 +649,46 @@
       ctx.strokeRect(-25,-25,50,50);
       ctx.fillStyle='#132233';
       ctx.fillRect(9,-8,6,6);
+    }else if(kind==='triangle'){
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
+      ctx.beginPath();
+      ctx.moveTo(0,-31);
+      ctx.lineTo(-31,25);
+      ctx.lineTo(31,25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-4,4,0,Math.PI*2);
+      ctx.fill();
+    }else if(kind==='star'){
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
+      const outer=34, inner=15;
+      ctx.beginPath();
+      for(let i=0;i<10;i++){
+        const r=(i%2===0)?outer:inner;
+        const a=-Math.PI/2 + i*Math.PI/5;
+        const px=Math.cos(a)*r, py=Math.sin(a)*r;
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-5,4,0,Math.PI*2);
+      ctx.fill();
     }else{
       ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
       ctx.beginPath();
