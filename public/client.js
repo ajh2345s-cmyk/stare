@@ -4,7 +4,6 @@ const $ = id => document.getElementById(id);
 let myId, isAdmin = false, mode = 'LOBBY', players = {};
 let isGameRunning = false;
 let mathStairsSeed = null;
-    if(bombMoveTimer){clearInterval(bombMoveTimer);bombMoveTimer=null;} bombInput={x:0,y:0}; colorGameLocked=true; colorRoundEnds=false;
 let mathStairsStarted = false; 
 
 let updownBuffer = ""; let updownLock = true;
