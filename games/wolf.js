@@ -23,22 +23,48 @@ function randomDerangement(count) {
     return arr.map((_, i) => (i + 1) % count);
 }
 
-function randomPartialPermutation(count) {
+function randomAdjacentPermutation(count, cols, rows) {
     if (count <= 1) return Array.from({ length: count }, (_, i) => i);
+
+    // 한 번의 섞기에서는 상/하/좌/우/대각선 한 칸 거리의 동물끼리만 교환한다.
     const mapping = Array.from({ length: count }, (_, i) => i);
-    const moveAll = Math.random() < 0.28;
-    let movedCount = moveAll ? count : Math.max(2, Math.min(count, Math.round(count * (0.35 + Math.random() * 0.65))));
-    if (count === 2) movedCount = 2;
-    const moved = Array.from({ length: count }, (_, i) => i);
-    for (let i = moved.length - 1; i > 0; i--) {
+    const shuffled = Array.from({ length: count }, (_, i) => i);
+    for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [moved[i], moved[j]] = [moved[j], moved[i]];
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    const active = moved.slice(0, movedCount);
-    const perm = randomDerangement(active.length);
-    active.forEach((from, i) => {
-        mapping[from] = active[perm[i]];
-    });
+
+    const used = new Set();
+    const directions = [
+        [-1, -1], [0, -1], [1, -1],
+        [-1,  0],          [1,  0],
+        [-1,  1], [0,  1], [1,  1]
+    ];
+
+    for (const from of shuffled) {
+        if (used.has(from)) continue;
+        const col = from % cols;
+        const row = Math.floor(from / cols);
+        const candidates = [];
+
+        for (const [dx, dy] of directions) {
+            const nc = col + dx;
+            const nr = row + dy;
+            if (nc < 0 || nc >= cols || nr < 0 || nr >= rows) continue;
+            const to = nr * cols + nc;
+            if (to >= count || used.has(to) || to === from) continue;
+            candidates.push(to);
+        }
+
+        if (candidates.length && Math.random() < 0.82) {
+            const to = candidates[Math.floor(Math.random() * candidates.length)];
+            mapping[from] = to;
+            mapping[to] = from;
+            used.add(from);
+            used.add(to);
+        }
+    }
+
     return mapping;
 }
 
@@ -93,7 +119,7 @@ module.exports = {
         const grid = gridForCount(total);
         const shuffleSteps = [];
         for (let k = 0; k < shuffles; k++) {
-            shuffleSteps.push(randomPartialPermutation(total));
+            shuffleSteps.push(randomAdjacentPermutation(total, grid.cols, grid.rows));
         }
 
         let finalTargets = targets.slice();
