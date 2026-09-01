@@ -7,7 +7,6 @@ module.exports = {
     serverTick: null,
     timerMain: null,
     timerTask: null,
-    bombTick: null,
 
     data: {
         isLocked: false,
@@ -32,9 +31,7 @@ module.exports = {
 
         memoryScores: {},
         memoryStatus: {},
-        memoryRound: 0,
-        colorRound: 0,
-        colorLock: false
+        memoryRound: 0
     },
 
     settings: {
@@ -54,8 +51,7 @@ module.exports = {
         missingSpeed: 10,
         missingCount: 5,
         missingOptionCount: 4,
-        mathStairsMode: 'MATH',
-        bombTime: 30
+        mathStairsMode: 'MATH'
     },
 
     clearAllTimers() {
@@ -63,7 +59,5 @@ module.exports = {
         if (this.timerTask) clearTimeout(this.timerTask);
         this.timerMain = null;
         this.timerTask = null;
-        if (this.bombTick) clearInterval(this.bombTick);
-        this.bombTick = null;
     }
 };

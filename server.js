@@ -283,13 +283,6 @@ io.on('connection', (socket) => {
             broadcastSettings();
         }
     });
-    socket.on('setBombSettings', (data) => {
-        if (store.players[socket.id]?.isAdmin) {
-            const raw = Number.parseInt(data?.time, 10);
-            store.settings.bombTime = Number.isFinite(raw) ? Math.max(10, Math.min(120, raw)) : 30;
-            broadcastSettings();
-        }
-    });
     socket.on('setMathStairsSettings', (data) => {
         if (store.players[socket.id]?.isAdmin) {
             store.settings.mathStairsMode = data?.mode === 'NORMAL' ? 'NORMAL' : 'MATH';
@@ -308,7 +301,6 @@ io.on('connection', (socket) => {
                 else if (mode.includes('WOLF')) allDone = alive.every(p => store.data.wolfStatus && store.data.wolfStatus[p.id] !== null);
                 else if (mode.includes('MISSING')) allDone = alive.every(p => store.data.missingStatus && store.data.missingStatus[p.id] !== null);
                 else if (mode.includes('MEMORY')) allDone = alive.every(p => store.data.memoryStatus && store.data.memoryStatus[p.id] === '완료 🏁' || store.data.memoryStatus[p.id] === '시간초과' || store.data.memoryStatus[p.id] === '종료됨');
-                else if (mode.includes('COLOR_MATCH')) allDone = true;
 
                 if (!allDone && alive.length > 0) {
                     socket.emit('adminWarning', '아직 선택하지 않은 학생이 있습니다! 학생 관리 패널(⏳)을 확인하거나 강제 종료하세요.');
@@ -319,7 +311,6 @@ io.on('connection', (socket) => {
                 else if (mode.includes('WOLF')) require('./games/wolf').nextRound(store);
                 else if (mode.includes('MISSING')) require('./games/missing').nextRound(store);
                 else if (mode.includes('MEMORY')) require('./games/memory').nextRound(store, logic);
-                else if (mode.includes('COLOR_MATCH')) require('./games/color_match').nextRound(store, logic);
             } 
         } catch(e) { console.error('[socket]', e); } 
     });
@@ -330,17 +321,6 @@ io.on('connection', (socket) => {
     socket.on('wolfSubmit', (idx) => { try { require('./games/wolf').handleInput(store, logic, socket.id, idx); } catch(e) { console.error('[socket]', e); } });
     socket.on('missingSubmit', (choice) => { try { require('./games/missing').handleInput(store, logic, socket.id, choice); } catch(e) { console.error('[socket]', e); } });
     socket.on('memorySubmit', (action) => { try { require('./games/memory').handleInput(store, logic, socket.id, action); } catch(e) { console.error('[socket]', e); } });
-
-    socket.on('updatePosition', (data) => {
-        try {
-            const p=store.players[socket.id];
-            if(!p || p.isAdmin || store.gameMode!=='BOMB' || store.gameState!=='PLAYING' || !p.isAlive) return;
-            const x=Math.max(0,Math.min(100,Number(data?.x)||0));
-            const y=Math.max(0,Math.min(100,Number(data?.y)||0));
-            p.x=x;p.y=y;
-        } catch(e) { console.error('[socket]',e); }
-    });
-    socket.on('colorSelect', (idx) => { try { require('./games/color_match').select(store,socket.id,idx); } catch(e) { console.error('[socket]', e); } });
 
 
     socket.on('mathStairsProgress', (data) => { try { mathStairs.handleProgress(store, socket.id, data); } catch(e) { console.error('[socket]', e); } });

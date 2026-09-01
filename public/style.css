@@ -207,14 +207,3 @@ ul, li { list-style: none !important; padding: 0; margin: 0; }
 }
 #math-stairs-game-area{overflow:hidden;}
 #math-stairs-frame{background:#0b1220;}
-
-
-/* 폭탄 돌리기: DOM 최소 갱신 + GPU transform으로 저사양 기기 부담 완화 */
-#bomb-game-area .game-timer-big,#color-match-game-area .game-timer-big{font-size:26px;font-weight:1000;color:#fff;background:rgba(17,24,39,.82);padding:8px 18px;border-radius:14px;z-index:2}
-#bomb-game-area{touch-action:none}.bomb-arena{position:relative;width:min(92vw,680px);height:min(68vh,560px);border:3px solid rgba(255,255,255,.16);border-radius:20px;background:radial-gradient(circle at center,#243244,#0b1220);overflow:hidden;contain:layout paint;}
-.bomb-player{position:absolute;left:0;top:0;width:56px;height:56px;margin:0;transform:translate(-50%,-50%);transform-origin:center;will-change:transform,opacity;contain:layout style;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;}
-.bomb-avatar{font-size:28px;line-height:28px;text-shadow:0 2px 4px rgba(0,0,0,.4)}.bomb-name{max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000;margin-top:2px}.bomb-icon{font-size:24px;line-height:24px;position:absolute;top:-18px;right:-12px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
-.bomb-controls{position:absolute;bottom:20px;z-index:4;text-align:center}.bomb-controls button{width:58px;height:48px;margin:2px;border-radius:12px;border:2px solid rgba(255,255,255,.16);background:#334155;color:#fff;font-size:20px;font-weight:900;touch-action:none}
-.color-target-card{min-width:230px;text-align:center;margin:8px 0 10px;padding:16px 22px;border-radius:16px;color:#fff;font-weight:1000;text-shadow:0 1px 3px #000;border:3px solid rgba(255,255,255,.18);box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.color-match-tiles{display:grid;grid-template-columns:repeat(5,minmax(54px,1fr));gap:8px;width:min(94vw,560px);max-height:62vh;overflow:auto;padding:6px}.color-match-tile{height:74px;border:3px solid rgba(255,255,255,.25);border-radius:14px;color:#fff;font-weight:1000;font-size:13px;text-shadow:0 1px 3px #000;box-shadow:0 4px 9px rgba(0,0,0,.18);cursor:pointer;transition:transform .12s,opacity .25s}.color-match-tile:active{transform:scale(.96)}.color-tile-drop{transform:translateY(80px)!important;opacity:.08;pointer-events:none}
-@media(max-width:520px){.bomb-arena{width:94vw;height:58vh}.color-match-tiles{grid-template-columns:repeat(4,minmax(54px,1fr));}.color-match-tile{height:68px}}
