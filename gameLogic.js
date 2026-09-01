@@ -1,5 +1,5 @@
 const store = require('./gameStore'); 
-let gameUpdown, gameFifty, gameBond, gameWolf, gameMissing, gameMemory, gameMathStairs;
+let gameUpdown, gameFifty, gameBond, gameWolf, gameMissing, gameMemory, gameMathStairs, gameBomb, gameColorMatch;
 try { gameUpdown = require('./games/updown'); } catch(e) {}
 try { gameFifty = require('./games/fifty'); } catch(e) {}
 try { gameBond = require('./games/bond'); } catch(e) {}
@@ -7,6 +7,8 @@ try { gameWolf = require('./games/wolf'); } catch(e) {}
 try { gameMissing = require('./games/missing'); } catch(e) {}
 try { gameMemory = require('./games/memory'); } catch(e) {}
 try { gameMathStairs = require('./games/math_stairs'); } catch(e) {}
+try { gameBomb = require('./games/bomb'); } catch(e) {}
+try { gameColorMatch = require('./games/color_match'); } catch(e) {}
 
 const logic = {};
 
@@ -14,7 +16,8 @@ logic.resetGame = function(mode = 'LOBBY') {
     try {
         if (store.timerMain) clearInterval(store.timerMain);
         if (store.timerTask) clearTimeout(store.timerTask);
-        store.timerMain = null; store.timerTask = null;
+        if (store.bombTick) clearInterval(store.bombTick);
+        store.timerMain = null; store.timerTask = null; store.bombTick = null;
 
         store.gameState = 'WAITING'; store.gameMode = mode;
         store.data.gameStartPending = false;
@@ -25,7 +28,7 @@ logic.resetGame = function(mode = 'LOBBY') {
         store.data.isStudentRankVisible = currentRankVis;
         
         store.data.updownScores = {}; store.data.fiftyScores = {}; store.data.fiftyFinishTimes = {};
-        store.data.bondScores = {}; store.data.wolfScores = {}; store.data.missingScores = {}; store.data.memoryScores = {}; store.data.mathStairsScores = {};
+        store.data.bondScores = {}; store.data.wolfScores = {}; store.data.missingScores = {}; store.data.memoryScores = {}; store.data.mathStairsScores = {}; store.data.colorRound = 0; store.data.colorLock = false;
 
         let newPlayers = {};
         if (store.players) {
@@ -46,7 +49,8 @@ logic.endGame = function(title, winners = [], msg = "", extraData = null) {
     try {
         if (store.timerMain) clearInterval(store.timerMain);
         if (store.timerTask) clearTimeout(store.timerTask);
-        store.timerMain = null; store.timerTask = null;
+        if (store.bombTick) clearInterval(store.bombTick);
+        store.timerMain = null; store.timerTask = null; store.bombTick = null;
         store.gameState = 'WAITING';
         if (store.data) { store.data.gameStartPending = false; store.data.mathStairsStarted = false; }
         if (winners.length > 0) store.io.emit('finalVictory', { title, winners, customMsg: msg, extra: extraData });
@@ -92,7 +96,9 @@ logic.startGameLogic = function() {
         else if (mode.includes('WOLF') && gameWolf) { gameWolf.run(store, logic); gameWolf.nextRound(store); }
         else if (mode.includes('MISSING') && gameMissing) { gameMissing.run(store, logic); gameMissing.nextRound(store); }
         else if (mode.includes('MEMORY') && gameMemory) { gameMemory.run(store, logic); gameMemory.nextRound(store, logic); }
-        else if (mode.includes('MATHSTAIRS') && gameMathStairs) { gameMathStairs.run(store, logic); } 
+        else if (mode.includes('MATHSTAIRS') && gameMathStairs) { gameMathStairs.run(store, logic); }
+        else if (mode.includes('BOMB') && gameBomb) { gameBomb.run(store, logic); }
+        else if (mode.includes('COLOR_MATCH') && gameColorMatch) { gameColorMatch.run(store, logic, 1); }
     } catch (error) { console.error(error); }
 };
 
@@ -100,7 +106,8 @@ logic.forceEndGame = function() {
     try {
         if (store.timerMain) clearInterval(store.timerMain);
         if (store.timerTask) clearTimeout(store.timerTask);
-        store.timerMain = null; store.timerTask = null;
+        if (store.bombTick) clearInterval(store.bombTick);
+        store.timerMain = null; store.timerTask = null; store.bombTick = null;
         store.gameState = 'RESULT'; 
         const mode = store.gameMode || '';
 
@@ -119,6 +126,8 @@ logic.forceEndGame = function() {
         else if (mode.includes('MISSING') && gameMissing) gameMissing.endGame(store, logic);
         else if (mode.includes('MEMORY') && gameMemory) gameMemory.endGame(store, logic);
         else if (mode.includes('MATHSTAIRS') && gameMathStairs) gameMathStairs.endGame(store, logic);
+        else if (mode.includes('BOMB') && gameBomb) gameBomb.forceEnd(store, logic);
+        else if (mode.includes('COLOR_MATCH') && gameColorMatch) gameColorMatch.forceEnd(store, logic);
         else logic.endGame("강제 종료", [], "선생님에 의해 종료되었습니다.");
     } catch (error) { console.error(error); }
 };
@@ -133,6 +142,7 @@ logic.forceRoundEnd = function(socketId) {
         else if (mode.includes('WOLF') && gameWolf && gameWolf.forceRoundEnd) gameWolf.forceRoundEnd(store, logic);
         else if (mode.includes('MISSING') && gameMissing && gameMissing.forceRoundEnd) gameMissing.forceRoundEnd(store, logic);
         else if (mode.includes('MEMORY') && gameMemory && gameMemory.forceRoundEnd) gameMemory.forceRoundEnd(store, logic);
+        else if (mode.includes('COLOR_MATCH') && gameColorMatch && gameColorMatch.forceRoundEnd) gameColorMatch.forceRoundEnd(store, logic);
     } catch (error) { console.error(error); }
 };
 

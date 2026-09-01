@@ -4,6 +4,7 @@ const $ = id => document.getElementById(id);
 let myId, isAdmin = false, mode = 'LOBBY', players = {};
 let isGameRunning = false;
 let mathStairsSeed = null;
+    if(bombMoveTimer){clearInterval(bombMoveTimer);bombMoveTimer=null;} bombInput={x:0,y:0}; colorGameLocked=true; colorRoundEnds=false;
 let mathStairsStarted = false; 
 
 let updownBuffer = ""; let updownLock = true;
@@ -17,7 +18,10 @@ let bondBuffer = ""; let isBondFinished = false;
 let wolfLock = true; let wolfPositions = []; 
 let missingLock = true; let memoryLock = true; let memoryTargetSequence = []; let memoryUserIndex = 0;
 
-let studentDoneMap = {}; 
+let studentDoneMap = {};
+let bombMoveTimer = null; let bombInput = {x:0,y:0}; let bombLastEmit = 0; let bombControlsBound = false;
+let colorGameLocked = true; let colorRoundEnds = false;
+
 let isStudentRankVisible = true; 
 const HEART_EMOJIS = ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '🩷', '🩵', '🩶'];
 
@@ -26,7 +30,7 @@ const gameTitleMap = {
     'FIFTY_READY': '🔢 1 to 50', 'FIFTY': '🔢 1 to 50', 'BOND_READY': '🍒 가르기 모으기', 'BOND': '🍒 가르기 모으기',
     'WOLF_READY': '🐺 늑대를 찾아라', 'WOLF': '🐺 늑대를 찾아라', 'MISSING_READY': '🕵️ 깜빡 퀴즈', 'MISSING': '🕵️ 깜빡 퀴즈',
     'MEMORY_READY': '🧠 기억력 게임', 'MEMORY': '🧠 기억력 게임',
-    'MATHSTAIRS_READY': '🪜 수학의 계단', 'MATHSTAIRS': '🪜 수학의 계단'
+    'MATHSTAIRS_READY': '🪜 수학의 계단', 'MATHSTAIRS': '🪜 수학의 계단', 'BOMB_READY':'💣 폭탄 돌리기', 'BOMB':'💣 폭탄 돌리기', 'COLOR_MATCH_READY':'🎨 색 맞추기', 'COLOR_MATCH':'🎨 색 맞추기'
 };
 
 window.onload = () => {
@@ -124,6 +128,7 @@ socket.on('initData', d => {
         mathStairsStarted = !!d.mathStairsStarted;
         window._mathStairsProblems = d.mathStairsProblems || window._mathStairsProblems || null;
         window._mathStairsMode = d.settings && d.settings.mathStairsMode === 'NORMAL' ? 'NORMAL' : 'MATH';
+        const bombSel=$('bomb-time-select'); if(bombSel && d.settings?.bombTime) bombSel.value=String(d.settings.bombTime);
         isStudentRankVisible = d.isStudentRankVisible ?? true; 
         
         const lockBtn = $('lock-btn');
@@ -145,6 +150,7 @@ socket.on('settingsUpdated', s => {
     updateMemoryReadyDisplay(s);
     const mathModeSelect = $('math-stairs-mode-select');
     if (mathModeSelect && s && s.mathStairsMode) mathModeSelect.value = s.mathStairsMode;
+    const bombSel=$('bomb-time-select'); if(bombSel && s && s.bombTime) bombSel.value=String(s.bombTime);
 });
 
 socket.on('rankVisibilityUpdated', isVisible => {
@@ -169,7 +175,7 @@ function updateUI() {
     const adminLabel = $('admin-label-users');
     if (adminLabel) adminLabel.innerHTML = `학생 관리 <span style="color:#f1c40f;font-size:10px;">(${stuCount}명)</span> <span class="toggle-btn">[접기]</span>`;
 
-    ['lobby-view', 'updown-game-area', 'fifty-game-area', 'bond-game-area', 'wolf-game-area', 'missing-game-area', 'memory-game-area', 'math-stairs-game-area', 'live-rank', 'status-panel'].forEach(id => safeDisplay(id, 'none'));
+    ['lobby-view', 'updown-game-area', 'fifty-game-area', 'bond-game-area', 'wolf-game-area', 'missing-game-area', 'memory-game-area', 'math-stairs-game-area', 'bomb-game-area', 'color-match-game-area', 'live-rank', 'status-panel'].forEach(id => safeDisplay(id, 'none'));
 
     if (mode !== 'LOBBY') {
         if (isAdmin || isStudentRankVisible) safeDisplay('live-rank', 'block');
@@ -178,7 +184,7 @@ function updateUI() {
 
     if (isAdmin) {
         const modeBtns = document.querySelectorAll('.mode-select-btn');
-        ['admin-start-btn', 'admin-next-btn', 'admin-stop-btn', 'admin-force-end-btn', 'admin-force-round-end-btn', 'setting-row-updown', 'admin-updown-answer-box', 'setting-row-fifty', 'setting-row-bond', 'setting-row-wolf', 'setting-row-missing', 'setting-row-memory', 'setting-row-math-stairs', 'logout-btn'].forEach(id => safeDisplay(id, 'none'));
+        ['admin-start-btn', 'admin-next-btn', 'admin-stop-btn', 'admin-force-end-btn', 'admin-force-round-end-btn', 'setting-row-updown', 'admin-updown-answer-box', 'setting-row-fifty', 'setting-row-bond', 'setting-row-wolf', 'setting-row-missing', 'setting-row-memory', 'setting-row-math-stairs', 'setting-row-bomb', 'logout-btn'].forEach(id => safeDisplay(id, 'none'));
         if(modeBtns) modeBtns.forEach(b => b.style.display = 'none');
 
         const visBtn = $('toggle-rank-vis-btn');
@@ -206,6 +212,8 @@ function updateUI() {
             else if (mode.includes('MISSING')) { safeDisplay('setting-row-missing', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MEMORY')) { safeDisplay('setting-row-memory', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MATHSTAIRS')) { safeDisplay('setting-row-math-stairs', 'block'); if(!isGameRunning) safeDisplay('admin-start-btn', 'block'); }
+            else if (mode.includes('BOMB')) { safeDisplay('setting-row-bomb', 'block'); if(!isGameRunning) safeDisplay('admin-start-btn', 'block'); }
+            else if (mode.includes('COLOR_MATCH')) { if(isGameRunning && mode==='COLOR_MATCH' && window._colorAwaitNext) safeDisplay('admin-next-btn','block'); else if(!isGameRunning) safeDisplay('admin-start-btn','block'); }
         }
     }
 
@@ -224,6 +232,8 @@ function updateUI() {
         else if (mode.includes('MISSING')) safeDisplay('missing-game-area', 'flex');
         else if (mode.includes('MEMORY')) safeDisplay('memory-game-area', 'flex');
         else if (mode.includes('MATHSTAIRS')) safeDisplay('math-stairs-game-area', 'flex');
+        else if (mode.includes('BOMB')) safeDisplay('bomb-game-area', 'flex');
+        else if (mode.includes('COLOR_MATCH')) safeDisplay('color-match-game-area', 'flex');
     }
 }
 
@@ -266,6 +276,7 @@ socket.on('hardReset', d => {
     mathStairsStarted = false;
     mode = d.mode || 'LOBBY'; players = d.players || {}; isGameRunning = false; studentDoneMap = {};
     mathStairsSeed = null;
+    if(bombMoveTimer){clearInterval(bombMoveTimer);bombMoveTimer=null;} bombInput={x:0,y:0}; colorGameLocked=true; colorRoundEnds=false;
     safeText('updown-history', ''); updownBuffer = ""; safeText('updown-display', '0'); safeText('updown-feedback', 'START');
     bondBuffer = ""; isBondFinished = false; safeText('bond-display', ''); safeText('bond-msg', '');
     if($('fifty-grid')) $('fifty-grid').innerHTML = ''; 
@@ -401,6 +412,53 @@ socket.on('mathStairsPlayersUpdate', list => {
     }, window.location.origin);
 });
 
+
+// --- [폭탄 돌리기 / 저사양 최적화] ---
+function startBombControls(){
+    if(bombMoveTimer) clearInterval(bombMoveTimer);
+    bombInput={x:0,y:0};
+    const setDir=(dx,dy)=>{bombInput={x:dx,y:dy};};
+    if(!bombControlsBound){
+        document.querySelectorAll('#bomb-controls [data-dir]').forEach(btn=>{
+            const dir=btn.dataset.dir, v={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[dir];
+            const on=ev=>{ev.preventDefault();setDir(v[0],v[1]);}; const off=ev=>{ev.preventDefault();if(bombInput.x===v[0]&&bombInput.y===v[1])bombInput={x:0,y:0};};
+            btn.onpointerdown=on; btn.onpointerup=off; btn.onpointercancel=off; btn.onpointerleave=off;
+        });
+        window.addEventListener('keydown',e=>{if(!mode.includes('BOMB')||isAdmin)return;const k=e.key.toLowerCase();const m={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]}[k];if(m){e.preventDefault();bombInput={x:m[0],y:m[1]};}},true);
+        window.addEventListener('keyup',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].includes(e.key)&&!isAdmin) bombInput={x:0,y:0};},true);
+        bombControlsBound=true;
+    }
+    bombMoveTimer=setInterval(()=>{
+        if(mode!=='BOMB'||isAdmin||!isGameRunning||!players[myId]?.isAlive) return;
+        if(!bombInput.x&&!bombInput.y) return;
+        const p=players[myId]; const speed=p.hasBomb?1.15:1.0;
+        p.x=Math.max(0,Math.min(100,(Number(p.x)||50)+bombInput.x*speed)); p.y=Math.max(0,Math.min(100,(Number(p.y)||50)+bombInput.y*speed));
+        const now=Date.now(); if(now-bombLastEmit>=100){bombLastEmit=now;socket.emit('updatePosition',{x:p.x,y:p.y});}
+        renderBombPlayers();
+    },100);
+}
+function renderBombPlayers(){
+    const arena=$('bomb-arena'); if(!arena)return;
+    const seen=new Set(); const list=Object.values(players);
+    list.forEach(p=>{if(p.isAdmin)return;seen.add(p.id);let el=$(`bomb-p-${p.id}`);if(!el){el=document.createElement('div');el.className='bomb-player';el.id=`bomb-p-${p.id}`;el.innerHTML='<span class="bomb-avatar"></span><span class="bomb-name"></span><span class="bomb-icon">💣</span>';arena.appendChild(el);}el.querySelector('.bomb-avatar').textContent=p.isAlive?'🙂':'💥';el.querySelector('.bomb-name').textContent=p.name||'';el.querySelector('.bomb-icon').style.display=p.hasBomb?'block':'none';el.style.left=`${Number(p.x)||0}%`; el.style.top=`${Number(p.y)||0}%`;el.style.opacity=p.isAlive?'1':'.35';});
+    arena.querySelectorAll('.bomb-player').forEach(el=>{if(!seen.has(el.id.replace('bomb-p-','')))el.remove();});
+}
+function clearBombArena(){const a=$('bomb-arena');if(a)a.innerHTML='';}
+socket.on('bombStart', d=>{safeText('bomb-timer',`💣 ${d.time}초`);safeText('bomb-status','폭탄을 다른 학생에게 가까이 가져가세요!');safeDisplay('bomb-controls',isAdmin?'none':'block');clearBombArena();startBombControls();renderBombPlayers();});
+socket.on('timerUpdate', t=>{if(mode.includes('BOMB'))safeText('bomb-timer',`💣 ${Math.max(0,t)}초`);});
+socket.on('bombWorldUpdate', list=>{if(mode!=='BOMB')return; const next={...players};(list||[]).forEach(p=>{if(next[p.id])Object.assign(next[p.id],p);});players=next;renderBombPlayers();});
+
+// --- [색 맞추기] ---
+function colorCss(c){return `hsl(${c.h},${c.s}%,${c.l}%)`;}
+socket.on('colorRoundStart', d=>{
+    colorGameLocked=false; colorRoundEnds=false; window._colorAwaitNext=false;
+    safeText('color-match-round',d.round); const target=$('color-match-target');if(target){target.style.background=colorCss(d.target);target.textContent='🎯 이 색과 같은 타일을 찾으세요';}
+    safeText('color-match-msg',`남은 시간 ${d.time}초`); const grid=$('color-match-tiles');if(!grid)return;grid.innerHTML='';
+    d.tiles.forEach((t,i)=>{const b=document.createElement('button');b.className='color-match-tile';b.style.background=colorCss(t);b.dataset.index=i;b.textContent=i+1;b.onclick=()=>{if(colorGameLocked||isAdmin||!isGameRunning)return;colorGameLocked=true;safeText('color-match-msg','선택 완료! 결과를 기다리세요.');socket.emit('colorSelect',i);};grid.appendChild(b);});
+    let left=Number(d.time)||8; if(window._colorTimer)clearInterval(window._colorTimer); window._colorTimer=setInterval(()=>{left--;safeText('color-match-msg',`남은 시간 ${Math.max(0,left)}초`);if(left<=0){clearInterval(window._colorTimer);colorGameLocked=true;}},1000);
+});
+socket.on('colorRoundEnd', d=>{colorGameLocked=true;(d.failedIds||[]).forEach(id=>{const el=$(`bomb-p-${id}`);if(el)el.style.opacity='.2';});(d.failedTiles||[]).forEach(i=>{const el=$('color-match-tiles')?.children[i];if(el)el.classList.add('color-tile-drop');});});
+socket.on('roundResult', d=>{if(mode!=='COLOR_MATCH')return;colorGameLocked=true;colorRoundEnds=true;window._colorAwaitNext=!!d.nextRound;safeText('color-match-msg','라운드 종료! 선생님이 다음 라운드를 시작합니다.');updateUI();});
 socket.on('liveRankUpdate', r => { const c = $('rank-content'); if(c) c.innerHTML = r; });
 
 socket.on('statusBoardUpdate', list => {

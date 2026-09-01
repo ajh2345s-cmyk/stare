@@ -48,7 +48,7 @@ module.exports = {
             floor: nextFloor,
             score: nextScore,
             state: (data && data.state) || 'playing',
-            character: (data && ['circle','square','triangle'].includes(data.character)) ? data.character : (prev.character || 'circle'),
+            character: (data && ['circle','square','triangle','star'].includes(data.character)) ? data.character : (prev.character || 'circle'),
             colorIndex: Number.isInteger(Number(data && data.colorIndex)) ? Math.max(0, Math.min(5, Number(data.colorIndex))) : (Number.isInteger(prev.colorIndex) ? prev.colorIndex : 0),
             x: Number.isFinite(Number(data && data.x)) ? Number(data.x) : (Number(prev.x) || 0),
             y: Number.isFinite(Number(data && data.y)) ? Number(data.y) : (Number(prev.y) || 0),
@@ -62,7 +62,7 @@ module.exports = {
         if (!p || p.isAdmin) return;
         store.data.mathStairsScores = store.data.mathStairsScores || {};
         const prev = store.data.mathStairsScores[socketId] || { floor: 1, score: 0, state: 'ready' };
-        const character = ['circle','square','triangle'].includes(data && data.character) ? data.character : (prev.character || 'circle');
+        const character = ['circle','square','triangle','star'].includes(data && data.character) ? data.character : (prev.character || 'circle');
         const colorIndex = Number.isInteger(Number(data && data.colorIndex)) ? Math.max(0, Math.min(5, Number(data.colorIndex))) : (Number.isInteger(prev.colorIndex) ? prev.colorIndex : 0);
         store.data.mathStairsScores[socketId] = { ...prev, character, colorIndex };
         this.updateRanking(store);

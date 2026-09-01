@@ -148,7 +148,930 @@
         </div>
 
         <div id="math-stairs-game-area" style="display:none; position:absolute; inset:0; width:100%; height:100%; z-index:2200; background:#111827;">
-            <iframe id="math-stairs-frame" title="수학의 계단" src="/math_stairs.html" style="display:block; width:100%; height:100%; border:0; margin:0; padding:0; background:#111827;" allow="fullscreen"></iframe>
+            <iframe id="math-stairs-frame" title="수학의 계단" style="display:block; width:100%; height:100%; border:0; margin:0; padding:0; background:#111827;" allow="fullscreen"></iframe>
+            <template id="math-stairs-template"><style>
+  :root{--bg:#111827;--panel:#1f2937;--panel2:#273449;--text:#f9fafb;--muted:#aeb9c9;--accent:#f8c24e;--danger:#ef6a6a;--ok:#68d391;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif;color:var(--text)}
+  button{font:inherit;color:inherit;border:0;cursor:pointer}
+  #app{width:100%;height:100%;display:flex;justify-content:center;background:linear-gradient(#101827,#0c1220)}
+  #game{position:relative;width:min(100vw,520px);height:100dvh;overflow:hidden;background:linear-gradient(#92c6e8 0 42%,#7ca8c3 42% 100%);touch-action:none}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .hud{position:absolute;left:12px;right:12px;top:max(10px,env(safe-area-inset-top));z-index:10;display:flex;align-items:center;gap:10px;pointer-events:none}
+  .stat{background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);padding:8px 12px;border-radius:12px;min-width:92px;box-shadow:0 5px 12px rgba(0,0,0,.18)}
+  .stat small{display:block;font-size:11px;color:var(--muted)}
+  .stat strong{display:block;font-size:20px;line-height:1.05;margin-top:2px}
+  .hpWrap{display:none}
+  .hpBar{height:16px;border-radius:8px;overflow:hidden;background:#43262b}
+  #hpFill{height:100%;width:100%;background:linear-gradient(90deg,#7fe28e,#e9dd63);transition:width .08s linear}
+  .pause{pointer-events:auto;width:42px;height:42px;border-radius:12px;background:rgba(17,24,39,.85);border:2px solid rgba(255,255,255,.22);font-size:19px}
+  .controls{position:absolute;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:12;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .control{height:78px;border-radius:18px;background:rgba(30,41,59,.92);border:3px solid rgba(255,255,255,.2);box-shadow:0 8px 18px rgba(0,0,0,.22);font-weight:900;font-size:18px;display:flex;align-items:center;justify-content:center;gap:8px;user-select:none;touch-action:none}
+  .control:active{transform:translateY(3px);filter:brightness(1.12)}
+  .turnIcon{font-size:34px;line-height:1}
+  .screen{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,11,18,.64);backdrop-filter:blur(7px)}
+  .card{width:min(92%,430px);background:linear-gradient(180deg,#263448,#1b2535);border:3px solid rgba(255,255,255,.15);border-radius:24px;padding:26px;box-shadow:0 25px 55px rgba(0,0,0,.35);text-align:center}
+  h1{margin:0 0 7px;font-size:42px;letter-spacing:-1px}
+  .sub{color:var(--muted);margin-bottom:18px}
+  .chars{display:flex;justify-content:center;align-items:center;gap:18px;margin:16px 0 20px}
+  .arrow{width:52px;height:52px;border-radius:14px;background:#172133;border:2px solid rgba(255,255,255,.15);font-size:32px}
+  .preview{width:120px;height:120px;border-radius:18px;background:linear-gradient(145deg,rgba(255,255,255,.13),rgba(255,255,255,.04));display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.18);box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)}
+  .shape{position:relative}
+  .circle{width:64px;height:64px;border-radius:50%;background:var(--preview-color,#5cd7ff);border:5px solid #132233;box-shadow:inset 0 -7px 0 rgba(0,0,0,.13)}
+  .square{width:64px;height:64px;background:var(--preview-color,#ff8a65);border:5px solid #132233;box-shadow:inset 0 -7px 0 rgba(0,0,0,.13)}
+  .triangle{width:0;height:0;border-left:35px solid transparent;border-right:35px solid transparent;border-bottom:66px solid var(--preview-color,#9ef07b);filter:drop-shadow(0 0 0 #132233) drop-shadow(0 3px 0 #132233)}
+  .star{width:64px;height:64px;background:var(--preview-color,#ffd166);}
+  .colorRow{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:-4px 0 16px}
+  .colorBtn{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.35);box-shadow:0 3px 8px rgba(0,0,0,.22);position:relative}
+  .colorBtn.selected{outline:3px solid #fff;outline-offset:2px}
+  .colorBtn::after{content:'';position:absolute;inset:6px;border-radius:50%;background:rgba(255,255,255,.18);opacity:.8}
+  .primary{width:100%;height:56px;border-radius:16px;background:var(--accent);color:#352600;font-size:20px;font-weight:1000}
+  .secondary{margin-top:9px;width:100%;height:46px;border-radius:14px;background:#334155;color:#e5e7eb;font-weight:800}
+  .mathTitle{font-size:16px;color:#d9e1ec;margin-bottom:6px}
+  .problem{font-size:48px;font-weight:1000;margin:8px 0 16px;color:#fff}
+  .answerRow{display:flex;gap:8px}
+  #answerInput{flex:0 0 110px;width:110px;height:54px;border-radius:14px;border:2px solid rgba(255,255,255,.15);background:#0f172a;color:#fff;text-align:center;font-size:28px;font-weight:900;outline:none;cursor:default}
+  .answerBtn{width:110px;height:54px;border-radius:14px;background:#78dca0;color:#133021;font-weight:1000}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .key{height:52px;border-radius:13px;background:#334155;border:2px solid rgba(255,255,255,.12);font-size:22px;font-weight:1000;user-select:none;touch-action:none}
+  .key:active{transform:translateY(2px);filter:brightness(1.12)}
+  .key.delete{background:#4b3a3f}
+  .key.enter{background:#78dca0;color:#133021}
+  .feedback{height:24px;margin-top:10px;font-weight:900}
+  .hidden{display:none !important}
+  .tip{margin-top:12px;color:#aeb9c9;font-size:13px;line-height:1.45}
+  @media (max-width:420px){h1{font-size:35px}.card{padding:20px}.control{height:72px;font-size:16px}.stat{min-width:80px;padding:7px 10px}.stat strong{font-size:18px}}
+
+  #adminSpectator{position:absolute;inset:0;background:rgba(8,14,24,.92);z-index:40;display:none;flex-direction:column;overflow:hidden;backdrop-filter:blur(3px)}
+  #adminSpectatorBar{height:58px;flex:0 0 58px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(17,24,39,.96);border-bottom:1px solid rgba(255,255,255,.12)}
+  #adminSpectatorBar strong{font-size:14px;white-space:nowrap}.spectator-info{font-size:11px;color:#aeb9c9;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spectator-btn{width:42px;height:40px;border-radius:10px;background:#334155;border:1px solid rgba(255,255,255,.15);font-size:20px;font-weight:900;touch-action:manipulation}.spectator-btn:active{transform:scale(.96)}
+  #adminSpectatorView{position:relative;flex:1;min-height:0;overflow:auto;background:linear-gradient(#92c6e8 0 42%,#7ca8c3 42% 100%);touch-action:pan-y;overscroll-behavior:contain}
+  #adminSpectatorView canvas{inset:0;height:auto;min-height:100%}.spectator-tip{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(17,24,39,.82);padding:7px 10px;border-radius:10px;font-size:11px;color:#e5e7eb;z-index:2;pointer-events:none;white-space:nowrap}
+</style>
+<div id="app">
+  <div id="game">
+    <canvas id="canvas"></canvas>
+
+    <div id="adminSpectator">
+      <div id="adminSpectatorBar">
+        <strong>👀 학생 플레이 화면</strong>
+        <span class="spectator-info" id="adminSpectatorInfo">학생 위치를 불러오는 중...</span>
+        <button class="spectator-btn" id="adminUpBtn" aria-label="위로 보기">▲</button>
+        <button class="spectator-btn" id="adminDownBtn" aria-label="아래로 보기">▼</button>
+      </div>
+      <div id="adminSpectatorView">
+        <div class="spectator-tip">위·아래 버튼 또는 화면을 위아래로 움직여 학생 위치를 살펴보세요.</div>
+      </div>
+    </div>
+
+    <div class="hud hidden" id="hud">
+      <div class="stat"><small>층</small><strong id="floorText">1</strong></div>
+      <div class="stat"><small>기록</small><strong id="bestText">0</strong></div>
+      <div class="hpWrap"><div class="hpBar"><div id="hpFill"></div></div></div>
+      <button class="pause" id="pauseBtn" aria-label="일시정지">Ⅱ</button>
+    </div>
+
+    <div class="controls hidden" id="controls">
+      <button class="control" id="turnBtn"><span class="turnIcon">↻</span><span>방향 전환</span></button>
+      <button class="control" id="upBtn"><span class="turnIcon">↑</span><span>오르기</span></button>
+    </div>
+
+    <div class="screen" id="startScreen">
+      <div class="card">
+        <h1>수학의 계단</h1>
+        <div class="sub">두 버튼으로 끝없이 계단을 올라가세요.</div>
+        <div style="font-weight:900;margin-top:4px">캐릭터 선택</div>
+        <div class="chars">
+          <button class="arrow" id="leftChar">‹</button>
+          <div class="preview" id="charPreview"></div>
+          <button class="arrow" id="rightChar">›</button>
+        </div>
+        <div id="charName" style="font-size:18px;font-weight:900;margin-bottom:10px">동그라미</div>
+        <div style="font-weight:900;margin-bottom:8px">캐릭터 색상</div>
+        <div class="colorRow" id="colorRow"></div>
+        <button class="primary" id="playBtn">GAME START</button>
+        <div class="tip">화살표 버튼은 방향을 바꾸면서 한 칸 올라갑니다.<br>오르기는 현재 방향으로 한 칸 올라갑니다.</div>
+      </div>
+    </div>
+
+    <div class="screen hidden" id="mathScreen">
+      <div class="card">
+        <div class="mathTitle">🎯 <span id="checkpointText">25층</span> 도착!</div>
+        <div style="font-size:14px;color:#9fb0c6">문제를 맞히면 그대로 계속 올라갑니다.</div>
+        <div class="mathTimerWrap">
+          <div class="mathTimerTop"><span>문제 제한시간</span><strong id="mathTimerText">10.0초</strong></div>
+          <div class="mathTimerTrack"><div class="mathTimerFill" id="mathTimerFill"></div></div>
+        </div>
+        <div class="problem" id="problemText">3 + 4 = ?</div>
+        <div class="answerRow">
+          <input id="answerInput" inputmode="none" autocomplete="off" readonly aria-label="정답 입력" />
+          <button class="answerBtn" id="answerBtn">정답</button>
+        </div>
+        <div class="keypad" id="keypad" aria-label="숫자 키패드">
+          <button class="key" data-key="1">1</button>
+          <button class="key" data-key="2">2</button>
+          <button class="key" data-key="3">3</button>
+          <button class="key" data-key="4">4</button>
+          <button class="key" data-key="5">5</button>
+          <button class="key" data-key="6">6</button>
+          <button class="key" data-key="7">7</button>
+          <button class="key" data-key="8">8</button>
+          <button class="key" data-key="9">9</button>
+          <button class="key delete" data-key="backspace">⌫</button>
+          <button class="key" data-key="0">0</button>
+          <button class="key enter" data-key="enter">↵</button>
+        </div>
+        <div class="feedback" id="feedback"></div>
+      </div>
+    </div>
+
+    <div class="screen hidden" id="gameOverScreen">
+      <div class="card">
+        <h1 style="font-size:36px">GAME OVER</h1>
+        <div class="sub">이번 기록</div>
+        <div style="font-size:52px;font-weight:1000;margin:8px 0 14px" id="resultFloor">0층</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:18px">
+          <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">최고 기록</small><div id="resultBest" style="font-size:24px;font-weight:1000">0층</div></div>
+          <div style="background:#111827;border-radius:14px;padding:12px"><small style="color:#98a6b8">획득 점수</small><div id="resultScore" style="font-size:24px;font-weight:1000">0</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen hidden" id="pauseScreen">
+      <div class="card">
+        <h1 style="font-size:34px">PAUSED</h1>
+        <button class="primary" id="resumeBtn">계속하기</button>
+        <button class="secondary" id="quitBtn">메인으로</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const game = document.getElementById('game');
+  const hud = document.getElementById('hud');
+  const controls = document.getElementById('controls');
+  const floorText = document.getElementById('floorText');
+  const bestText = document.getElementById('bestText');
+  const hpFill = document.getElementById('hpFill');
+  const startScreen = document.getElementById('startScreen');
+  const mathScreen = document.getElementById('mathScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const pauseScreen = document.getElementById('pauseScreen');
+  const charPreview = document.getElementById('charPreview');
+  const charName = document.getElementById('charName');
+  const colorRow = document.getElementById('colorRow');
+  const problemText = document.getElementById('problemText');
+  const answerInput = document.getElementById('answerInput');
+  const feedback = document.getElementById('feedback');
+  const keypad = document.getElementById('keypad');
+
+  const CHARACTERS = ['circle','square','triangle','star'];
+  const CHAR_NAMES = {circle:'동그라미', square:'네모', triangle:'세모', star:'별'};
+  let selectedChar = 0;
+  const COLORS = [
+    {name:'파랑', fill:'#38bdf8'},
+    {name:'빨강', fill:'#fb7185'},
+    {name:'초록', fill:'#4ade80'},
+    {name:'노랑', fill:'#facc15'},
+    {name:'보라', fill:'#c084fc'},
+    {name:'주황', fill:'#fb923c'}
+  ];
+  let selectedColor = 0;
+
+  let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  let W=0,H=0;
+  function resize(){
+    const spectatorEl=document.getElementById('adminSpectator'), spectatorViewEl=document.getElementById('adminSpectatorView');
+    const r=(hostIsAdmin && spectatorViewEl && spectatorEl && spectatorEl.style.display!=='none') ? spectatorViewEl.getBoundingClientRect() : game.getBoundingClientRect();
+    W=r.width; H=r.height;
+    dpr=Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width=Math.floor(W*dpr); canvas.height=Math.floor(H*dpr);
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize',resize); resize();
+
+  let embeddedHost = false;
+  let hostIsAdmin = false;
+  const adminSpectator=document.getElementById('adminSpectator');
+  const adminSpectatorView=document.getElementById('adminSpectatorView');
+  const adminSpectatorInfo=document.getElementById('adminSpectatorInfo');
+  const adminUpBtn=document.getElementById('adminUpBtn');
+  const adminDownBtn=document.getElementById('adminDownBtn');
+  let state='TITLE';
+  let paused=false;
+  let floor=1;
+  let best=Number(localStorage.getItem('mathStairsBest')||0);
+  let mathMode='MATH';
+  let hp=100;
+  let score=0;
+  let facing=1; // 1 right, -1 left
+  let steps=[];
+  let player={x:0,y:0,targetX:0,targetY:0,anim:0,fromX:0,fromY:0};
+  let cameraX=0;
+  let cameraY=0;
+  const CAMERA_PLAYER_X = 0.50; // 캐릭터를 화면 가로 중앙에 고정
+  const CAMERA_PLAYER_Y = 0.43; // 캐릭터를 화면 중앙보다 약간 위에 고정
+  const PLAYER_DRAW_OFFSET_Y = 43;
+  let last=performance.now();
+  let actionLock=false;
+  let mathPending=false;
+  let currentProblem=null;
+  let mathTimeLeft=7.0;
+  function mathTimeLimitForFloor(){ return 10; }
+  function stairGaugeSecondsForFloor(f){
+    const n=Math.max(1, Number(f)||1);
+    if(n>=250) return 0.5;
+    if(n>=200) return 1;
+    if(n>=150) return 2;
+    if(n>=100) return 3;
+    if(n>=50) return 4;
+    return 5;
+  }
+  let MATH_TIME_LIMIT=5.0;
+  let mathTimeoutHandled=false;
+  let visualFall=0;
+  let sharedSeed=0;
+  let otherPlayers={};
+  let adminViewFloor=1;
+  let adminMaxFloor=1;
+  let adminAutoFollow=true;
+  let adminSwipeStartY=null;
+  let adminViewUserIds=[];
+  let localPlayerId=null;
+
+  // Gameplay constants tuned to the original feel, with original shapes/art.
+  const STAIR_W = 86;
+  const STAIR_H = 26;
+  const DX = 72;
+  const DY = 58;
+  const MAX_STEPS_AHEAD = 80;
+  const BASE_HP_DRAIN = 8.5; // 빠른 템포를 위한 초기 게이지 감소 속도
+
+  function show(el){el.classList.remove('hidden')}
+  function hide(el){el.classList.add('hidden')}
+
+  function renderColorChoices(){
+    colorRow.innerHTML='';
+    COLORS.forEach((c,i)=>{
+      const b=document.createElement('button');
+      b.className='colorBtn'+(i===selectedColor?' selected':'');
+      b.style.background=c.fill;
+      b.title=c.name; b.setAttribute('aria-label', c.name);
+      b.addEventListener('click',()=>{selectedColor=i; updateCharacterPreview(); notifyProfile();});
+      colorRow.appendChild(b);
+    });
+  }
+  function updateCharacterPreview(){
+    charPreview.innerHTML='';
+    const div=document.createElement('div');
+    div.className='shape '+CHARACTERS[selectedChar];
+    div.style.setProperty('--preview-color', COLORS[selectedColor].fill);
+    if(CHARACTERS[selectedChar]==='circle') div.style.background=COLORS[selectedColor].fill;
+    if(CHARACTERS[selectedChar]==='square') div.style.background=COLORS[selectedColor].fill;
+    if(CHARACTERS[selectedChar]==='triangle') div.style.borderBottomColor=COLORS[selectedColor].fill;
+    if(CHARACTERS[selectedChar]==='star') { div.style.background=COLORS[selectedColor].fill; div.style.clipPath='polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 92%,50% 70%,21% 92%,32% 57%,2% 35%,39% 35%)'; }
+    charPreview.appendChild(div);
+    charName.textContent=CHAR_NAMES[CHARACTERS[selectedChar]]+' · '+COLORS[selectedColor].name;
+    renderColorChoices();
+  }
+  document.getElementById('leftChar').addEventListener('click',()=>{
+    selectedChar=(selectedChar+CHARACTERS.length-1)%CHARACTERS.length; updateCharacterPreview(); notifyProfile();
+  });
+  document.getElementById('rightChar').addEventListener('click',()=>{
+    selectedChar=(selectedChar+1)%CHARACTERS.length; updateCharacterPreview(); notifyProfile();
+  });
+  updateCharacterPreview();
+
+  function seededRng(seed){
+    let t=(Number(seed)>>>0)||1;
+    return function(){
+      t=(t+0x6D2B79F5)>>>0;
+      let r=Math.imul(t^(t>>>15),1|t);
+      r^=r+Math.imul(r^(r>>>7),61|r);
+      return ((r^(r>>>14))>>>0)/4294967296;
+    };
+  }
+  function makeStep(i,prev,rng){
+    const dir=i<=2 ? 1 : (rng()<0.5?1:-1);
+    return {i,x:prev.x+dir*DX,y:prev.y-DY,dir};
+  }
+  function buildInitialStairs(){
+    const rng=seededRng(sharedSeed);
+    steps=[]; steps.push({i:0,x:0,y:0,dir:0});
+    for(let i=1;i<MAX_STEPS_AHEAD;i++) steps.push(makeStep(i,steps[i-1],rng));
+    syncPlayerToStep(0);
+  }
+  function ensureStepsAhead(){
+    const need=Math.max(MAX_STEPS_AHEAD,floor+MAX_STEPS_AHEAD/2);
+    if(steps.length>=need) return;
+    const rng=seededRng(sharedSeed);
+    for(let i=3;i<steps.length;i++) rng();
+    while(steps.length<need) steps.push(makeStep(steps.length,steps[steps.length-1],rng));
+  }
+  function syncPlayerToStep(i){
+    const s=steps[Math.max(0,Math.min(i,steps.length-1))];
+    player.x=s.x; player.y=s.y; player.targetX=s.x; player.targetY=s.y; player.anim=0; player.fromX=s.x; player.fromY=s.y;
+  }
+  function notifyHost(type,payload={}){
+    if(embeddedHost&&window.parent&&window.parent!==window) window.parent.postMessage({source:'math-stairs',type,...payload},window.location.origin);
+  }
+  function notifyProfile(){
+    notifyHost('profile',{character:CHARACTERS[selectedChar],colorIndex:selectedColor});
+  }
+  function startGame(seed){
+    if(state==='PLAYING'&&!mathPending) return;
+    sharedSeed=(Number(seed)>>>0)||1;
+    state='PLAYING'; paused=false; floor=1; score=0; hp=100; facing=1; visualFall=0; actionLock=false; mathPending=false;
+    buildInitialStairs(); snapCameraToPlayer();
+    startScreen.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
+    hud.classList.remove('hidden'); controls.classList.remove('hidden'); updateHUD(); notifyProfile();
+    notifyHost('progress',{floor,score,state:'playing',x:player.x,y:player.y,facing,character:CHARACTERS[selectedChar],colorIndex:selectedColor});
+  }
+  function updateHUD(){ floorText.textContent=floor; bestText.textContent=best; }
+  function levelDrainPerSec(){ return 100 / stairGaugeSecondsForFloor(floor); }
+  function regenPerStep(){ return 100; }
+  function isCorrectDestination(next,movementDir){ const dx=next.x-player.x; return (movementDir>0&&dx>0)||(movementDir<0&&dx<0); }
+  function performAction(turn){
+    if(state!=='PLAYING'||paused||mathPending||actionLock) return;
+    ensureStepsAhead(); const next=steps[floor]; const moveDir=turn?-facing:facing; if(turn) facing*=-1;
+    actionLock=true; player.fromX=player.x; player.fromY=player.y; player.targetX=next.x; player.targetY=next.y; player.anim=0;
+    if(!isCorrectDestination(next,moveDir)){ visualFall=1; setTimeout(()=>gameOver(),260); return; }
+    floor++; score++; hp=100; ensureStepsAhead();
+    if(floor>best){best=floor; localStorage.setItem('mathStairsBest',String(best));}
+    notifyHost('progress',{floor,score,state:'playing',x:next.x,y:next.y,facing,character:CHARACTERS[selectedChar],colorIndex:selectedColor});
+    updateHUD(); setTimeout(()=>{actionLock=false;if(mathMode==='MATH' && floor%25===0)openMath();},120);
+  }
+  function randomMath(){
+    const shared = window._mathStairsProblems && window._mathStairsProblems[floor];
+    if(shared && typeof shared.q === 'string' && Number.isFinite(Number(shared.answer))) return { q: shared.q, a: Number(shared.answer) };
+    const rng=seededRng((sharedSeed ^ Math.imul(floor+1,0x9E3779B9))>>>0);
+    const plus=rng()<0.5; const pairs=[];
+    if(plus){for(let a=0;a<=10;a++)for(let b=0;b<=10-a;b++)pairs.push([a,b]);}
+    else{for(let a=0;a<=10;a++)for(let b=0;b<=a;b++)pairs.push([a,b]);}
+    const [a,b]=pairs[Math.floor(rng()*pairs.length)];
+    return plus?{q:`${a} + ${b} = ?`,a:a+b}:{q:`${a} − ${b} = ?`,a:a-b};
+  }
+
+  function openMath(){
+    mathPending=true; MATH_TIME_LIMIT=10; mathTimeLeft=MATH_TIME_LIMIT; mathTimeoutHandled=false; currentProblem=randomMath();
+    document.getElementById('checkpointText').textContent=floor+'층';
+    problemText.textContent=currentProblem.q;
+    feedback.textContent='';
+    answerInput.value='';
+    document.getElementById('mathTimerText').textContent=MATH_TIME_LIMIT.toFixed(1)+'초';
+    document.getElementById('mathTimerFill').style.width='100%';
+    document.getElementById('mathTimerFill').style.background='#facc15';
+    mathScreen.classList.remove('hidden');
+  }
+
+  function failMath(){
+    if(!mathPending || mathTimeoutHandled) return;
+    mathTimeoutHandled=true;
+    feedback.textContent='시간 초과! 15층 내려갑니다.'; feedback.style.color='var(--danger)';
+    answerInput.disabled=true;
+    const target=Math.max(1,floor-15);
+    setTimeout(()=>{
+      floor=target; score=Math.max(0, target-1); hp=Math.max(hp,55);
+      notifyHost('progress', {floor, score, state:'penalty', x:player.x, y:player.y, facing, character:CHARACTERS[selectedChar], colorIndex:selectedColor});
+      syncPlayerToStep(floor-1);
+      ensureStepsAhead();
+      mathPending=false; mathScreen.classList.add('hidden'); answerInput.disabled=false; actionLock=false; visualFall=0; updateHUD();
+    },520);
+  }
+
+  function submitMath(){
+    if(!mathPending || mathTimeoutHandled) return;
+    const raw=answerInput.value.trim();
+    if(raw==='') return;
+    const n=Number(raw);
+    if(n===currentProblem.a){
+      mathTimeoutHandled=true;
+      feedback.textContent='정답! 계속 올라갑니다.'; feedback.style.color='var(--ok)';
+      setTimeout(()=>{ mathPending=false; mathScreen.classList.add('hidden'); feedback.textContent=''; actionLock=false; },420);
+    } else {
+      mathTimeoutHandled=true;
+      feedback.textContent='오답! 15층 내려갑니다.'; feedback.style.color='var(--danger)';
+      const target=Math.max(1,floor-15);
+      setTimeout(()=>{
+        floor=target; score=Math.max(0, target-1); hp=Math.max(hp,55);
+      notifyHost('progress', {floor, score, state:'penalty', x:player.x, y:player.y, facing, character:CHARACTERS[selectedChar], colorIndex:selectedColor});
+        syncPlayerToStep(floor-1);
+        ensureStepsAhead();
+        mathPending=false; mathScreen.classList.add('hidden'); actionLock=false; visualFall=0; updateHUD();
+      },520);
+    }
+  }
+
+  document.getElementById('playBtn').addEventListener('click',()=>{ if(!embeddedHost) startGame(); });
+  const retryBtn=document.getElementById('retryBtn'); if(retryBtn) retryBtn.remove();
+  document.getElementById('answerBtn').addEventListener('click',submitMath);
+  answerInput.addEventListener('keydown',e=>{ if(e.key==='Enter') submitMath(); });
+
+  function keypadPress(key){
+    if(!mathPending || mathTimeoutHandled || answerInput.disabled) return;
+    if(key==='backspace'){
+      answerInput.value=answerInput.value.slice(0,-1);
+      return;
+    }
+    if(key==='enter'){
+      submitMath();
+      return;
+    }
+    if(/^[0-9]$/.test(key)){
+      // 정답은 한 자리 숫자이므로 불필요한 앞자리 0과 과도한 입력을 제한한다.
+      if(answerInput.value.length>=2) return;
+      if(answerInput.value==='0') answerInput.value='';
+      answerInput.value += key;
+    }
+  }
+
+  keypad.querySelectorAll('.key').forEach(btn=>{
+    const press=(e)=>{ e.preventDefault(); keypadPress(btn.dataset.key); };
+    btn.addEventListener('pointerdown',press,{passive:false});
+  });
+  document.getElementById('pauseBtn').addEventListener('click',()=>{
+    if(state!=='PLAYING' || mathPending) return;
+    paused=true; pauseScreen.classList.remove('hidden');
+  });
+  document.getElementById('resumeBtn').addEventListener('click',()=>{paused=false; pauseScreen.classList.add('hidden');});
+  document.getElementById('quitBtn').addEventListener('click',()=>{paused=false; state='TITLE'; hud.classList.add('hidden'); controls.classList.add('hidden'); pauseScreen.classList.add('hidden'); startScreen.classList.remove('hidden');});
+
+  function bindPress(btn, fn){
+    const press=(e)=>{ e.preventDefault(); fn(); };
+    btn.addEventListener('pointerdown',press,{passive:false});
+  }
+  bindPress(document.getElementById('turnBtn'),()=>performAction(true));
+  bindPress(document.getElementById('upBtn'),()=>performAction(false));
+
+  window.addEventListener('keydown',e=>{
+    if(state!=='PLAYING' || paused || mathPending) return;
+    if(['ArrowLeft','a','A','x','X'].includes(e.key)) { e.preventDefault(); performAction(true); }
+    if(['ArrowRight','d','D','z','Z',' '].includes(e.key)) { e.preventDefault(); performAction(false); }
+  });
+
+  function gameOver(){
+    notifyHost('gameOver', {floor, score});
+    state='GAMEOVER'; mathPending=false; hud.classList.add('hidden'); controls.classList.add('hidden');
+    document.getElementById('resultFloor').textContent=floor+'층';
+    document.getElementById('resultBest').textContent=best+'층';
+    document.getElementById('resultScore').textContent=score;
+    gameOverScreen.classList.remove('hidden');
+    visualFall=0;
+  }
+
+  function drawBackground(){
+    const grad=ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'#b4ddf5'); grad.addColorStop(.55,'#8fc1df'); grad.addColorStop(1,'#6c8ca8');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,W,H);
+    // simple distant city blocks for visual depth
+    const base=H*0.48 + 30;
+    for(let i=0;i<15;i++){
+      const bw=50+((i*37)%55); const bh=40+((i*59)%105); const x=i*45-((cameraY/6)%45);
+      ctx.fillStyle='rgba(255,255,255,.16)'; ctx.fillRect(x,base-bh,bw,bh);
+      for(let yy=base-bh+12; yy<base-12; yy+=17){
+        for(let xx=x+8; xx<x+bw-8; xx+=18){
+          ctx.fillStyle='rgba(80,120,150,.22)'; ctx.fillRect(xx,yy,9,7);
+        }
+      }
+    }
+  }
+
+  function worldToScreen(x,y){
+    return {x:W*CAMERA_PLAYER_X + (x-cameraX), y:H*0.58 + (y-cameraY)};
+  }
+
+  function getPlayerRenderWorldX(){
+    let wx = player.x;
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      const e = t * t * (3 - 2 * t);
+      wx = player.fromX + (player.targetX - player.fromX) * e;
+    }
+    return wx;
+  }
+
+  function getPlayerRenderWorldY(){
+    let wy = player.y;
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      const e = t * t * (3 - 2 * t);
+      wy = player.fromY + (player.targetY - player.fromY) * e;
+    }
+    return wy;
+  }
+
+  function cameraTargetX(){
+    // 캐릭터의 실제 가로 위치를 화면 중앙에 오도록 맞춘다.
+    return getPlayerRenderWorldX();
+  }
+
+  function cameraTargetY(){
+    // 캐릭터의 실제 화면상 중심이 CAMERA_PLAYER_Y 위치에 오도록 계산한다.
+    return getPlayerRenderWorldY() + H * (0.58 - CAMERA_PLAYER_Y) - PLAYER_DRAW_OFFSET_Y;
+  }
+
+  function snapCameraToPlayer(){
+    cameraX = cameraTargetX();
+    cameraY = cameraTargetY();
+  }
+
+  function drawStair(s){
+    const p=worldToScreen(s.x,s.y);
+    const left=p.x-STAIR_W/2;
+    const top=p.y;
+    // connected 2.5D-ish stair blocks; no arrows or labels.
+    ctx.fillStyle='#4a3a33';
+    ctx.fillRect(left+5,top+10,STAIR_W,STAIR_H);
+    ctx.fillStyle='#9d765b';
+    ctx.fillRect(left,top,STAIR_W,STAIR_H);
+    ctx.fillStyle='#c19677';
+    ctx.fillRect(left,top,STAIR_W,7);
+    ctx.fillStyle='rgba(40,28,20,.28)';
+    ctx.fillRect(left+10,top+12,STAIR_W-20,5);
+  }
+
+  function drawOtherPlayers(){
+    const list=Object.values(otherPlayers||{});
+    const focusFloor=hostIsAdmin ? adminViewFloor : floor;
+    adminViewUserIds=[];
+    list.forEach(p=>{
+      if(p.id===localPlayerId && !hostIsAdmin) return;
+      const pf=Number(p.floor)||1;
+      if(Math.abs(pf-focusFloor)>10) return;
+      const sx=p.x!=null ? p.x : player.x;
+      const sy=p.y!=null ? p.y : player.y;
+      const pos=worldToScreen(sx,sy);
+      const facing=Number(p.facing)<0?-1:1;
+      const alpha=hostIsAdmin ? (Math.abs(pf-focusFloor)<=3 ? 1 : .38) : .30;
+      ctx.save(); ctx.globalAlpha=alpha;
+      drawCharacter(pos.x,pos.y-PLAYER_DRAW_OFFSET_Y,p.character||'circle',colorPalette[Number.isInteger(p.colorIndex)?p.colorIndex:0],facing);
+      ctx.globalAlpha=1;
+      if(hostIsAdmin){
+        ctx.font='700 11px system-ui'; ctx.textAlign='center'; ctx.fillStyle='#0f172a';
+        ctx.fillText(`${p.name||'학생'} · ${pf}층`,pos.x,pos.y-PLAYER_DRAW_OFFSET_Y-28);
+        adminViewUserIds.push(p.id);
+      }
+      ctx.restore();
+    });
+  }
+
+  function drawPlayer(){
+    // 캐릭터의 '발 위치'를 월드 좌표로 잡고, 항상 계단 위에 보이도록 렌더링한다.
+    let wx = player.x;
+    let wy = player.y;
+
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      const e = t * t * (3 - 2 * t);
+      wx = player.fromX + (player.targetX - player.fromX) * e;
+      wy = player.fromY + (player.targetY - player.fromY) * e;
+    }
+
+    let p = worldToScreen(wx, wy);
+    let x = p.x;
+    let y = p.y - PLAYER_DRAW_OFFSET_Y;
+
+    // 올라가는 순간 살짝 튀는 바운스
+    if(player.anim < 1){
+      const t = Math.max(0, Math.min(1, player.anim));
+      y -= Math.sin(Math.PI * t) * 10;
+    }
+
+    // 추락 연출
+    if(visualFall){
+      const f = Math.max(0, Math.min(1, visualFall));
+      y += f * f * 90;
+      x += (facing > 0 ? 1 : -1) * f * 45;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((facing > 0 ? 1 : -1) * f * 0.8);
+      drawCharacterShape(CHARACTERS[selectedChar], true);
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
+    // High-contrast outline so the character is always visible against any stair/background.
+    ctx.shadowColor='rgba(255,255,255,.92)';
+    ctx.shadowBlur=12;
+    drawCharacterShape(CHARACTERS[selectedChar], false);
+    ctx.shadowColor='transparent';
+    ctx.shadowBlur=0;
+    ctx.restore();
+
+    // 캐릭터 머리 위에 작은 개인 게이지를 표시한다.
+    const gaugeW = 74, gaugeH = 8;
+    const gaugeX = x - gaugeW/2, gaugeY = y - 66;
+    ctx.save();
+    ctx.fillStyle='rgba(15,23,42,.88)';
+    ctx.strokeStyle='rgba(255,255,255,.9)';
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.roundRect(gaugeX-2, gaugeY-2, gaugeW+4, gaugeH+4, 5); ctx.fill(); ctx.stroke();
+    const ratio = Math.max(0, Math.min(1, hp/100));
+    ctx.fillStyle = ratio < .3 ? '#fb7185' : (ratio < .55 ? '#f59e0b' : '#4ade80');
+    ctx.beginPath(); ctx.roundRect(gaugeX, gaugeY, gaugeW*ratio, gaugeH, 4); ctx.fill();
+    ctx.font='700 9px system-ui, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle='#ffffff';
+    ctx.strokeStyle='rgba(15,23,42,.9)'; ctx.lineWidth=3;
+    ctx.strokeText(`${(hp/100*stairGaugeSecondsForFloor(floor)).toFixed(1)}s`, x, gaugeY-3);
+    ctx.fillText(`${(hp/100*stairGaugeSecondsForFloor(floor)).toFixed(1)}s`, x, gaugeY-3);
+    ctx.restore();
+
+    // 바로 윗 순위 학생을 캐릭터 아래에 작게 표시한다.
+    const rankEntries = Object.values(otherPlayers)
+      .filter(op => op.id !== localPlayerId)
+      .map(op => ({...op, floor:Number(op.floor)||1, score:Number(op.score)||0}))
+      .sort((a,b) => b.floor-a.floor || b.score-a.score || String(a.name||'').localeCompare(String(b.name||'')));
+    const myRank = rankEntries.filter(op => op.floor > floor || (op.floor === floor && op.score > score)).length + 1;
+    const above = rankEntries.filter(op => op.floor > floor || (op.floor === floor && op.score > score))[0];
+    if(above){
+      const diff=Math.max(0, above.floor-floor);
+      ctx.save();
+      ctx.font='800 11px system-ui, sans-serif';
+      const label=`↑ ${above.name} · ${above.floor}층${diff>0?` (+${diff})`:''}`;
+      const tw=ctx.measureText(label).width+16;
+      const ly=y+52;
+      ctx.fillStyle='rgba(15,23,42,.86)';
+      ctx.strokeStyle='rgba(255,255,255,.62)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.roundRect(x-tw/2,ly-15,tw,20,7); ctx.fill(); ctx.stroke();
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#f8fafc'; ctx.fillText(label,x,ly-5);
+      ctx.restore();
+    }
+  }
+
+  function drawCharacterShape(kind, falling, colorOverride){
+    // 그림자가 먼저 표시되어 계단 위에서 캐릭터가 떠 보이지 않도록 한다.
+    ctx.fillStyle='rgba(0,0,0,.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 32, 27, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if(kind==='circle'){
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
+      ctx.beginPath();
+      ctx.arc(0,0,25,0,Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-7,4,0,Math.PI*2);
+      ctx.fill();
+    }else if(kind==='square'){
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
+      ctx.fillRect(-25,-25,50,50);
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.strokeRect(-25,-25,50,50);
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.strokeRect(-25,-25,50,50);
+      ctx.fillStyle='#132233';
+      ctx.fillRect(9,-8,6,6);
+    }else if(kind==='triangle'){
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
+      ctx.beginPath();
+      ctx.moveTo(0,-31);
+      ctx.lineTo(-31,25);
+      ctx.lineTo(31,25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-4,4,0,Math.PI*2);
+      ctx.fill();
+    }else if(kind==='star'){
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
+      const outer=34, inner=15;
+      ctx.beginPath();
+      for(let i=0;i<10;i++){
+        const r=(i%2===0)?outer:inner;
+        const a=-Math.PI/2 + i*Math.PI/5;
+        const px=Math.cos(a)*r, py=Math.sin(a)*r;
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-5,4,0,Math.PI*2);
+      ctx.fill();
+    }else{
+      ctx.fillStyle=colorOverride || COLORS[selectedColor].fill;
+      ctx.beginPath();
+      ctx.moveTo(0,-31);
+      ctx.lineTo(-31,25);
+      ctx.lineTo(31,25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle='#ffffff';
+      ctx.lineWidth=10;
+      ctx.stroke();
+      ctx.strokeStyle='#122538';
+      ctx.lineWidth=5;
+      ctx.stroke();
+      ctx.fillStyle='#132233';
+      ctx.beginPath();
+      ctx.arc(9,-4,4,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    // 앞을 바라보는 방향이 직관적으로 보이도록 작은 표시를 추가
+    ctx.fillStyle='rgba(255,255,255,.82)';
+    ctx.beginPath();
+    ctx.arc(18, 14, 4, 0, Math.PI*2);
+    ctx.fill();
+
+    if(falling){
+      ctx.globalAlpha=.25;
+      ctx.strokeStyle='#fff';
+      ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.moveTo(-28,-35); ctx.lineTo(-38,-48);
+      ctx.moveTo(28,-28); ctx.lineTo(38,-42);
+      ctx.stroke();
+      ctx.globalAlpha=1;
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H); drawBackground();
+    const targetX = cameraTargetX();
+    const targetY = cameraTargetY();
+    // 카메라는 캐릭터의 상하좌우 실제 위치를 모두 따라간다.
+    // 이동 중에는 조금 빠르게, 정지 중에는 안정적으로 유지한다.
+    const cameraLerp = player.anim < 1 ? 0.28 : 0.18;
+    cameraX += (targetX-cameraX)*cameraLerp;
+    cameraY += (targetY-cameraY)*cameraLerp;
+    // visible stair range
+    for(const s of steps){
+      const sy=worldToScreen(s.x,s.y).y;
+      if(sy>-100 && sy<H+100) drawStair(s);
+    }
+    if(state==='SPECTATE'){ drawOtherPlayers(); }
+    else if(state!=='TITLE'){drawOtherPlayers();drawPlayer();}
+    if(state==='PLAYING' && !paused && !mathPending){
+      const vign=ctx.createLinearGradient(0,0,0,H); vign.addColorStop(0,'rgba(0,0,0,.03)'); vign.addColorStop(.75,'rgba(0,0,0,.02)'); vign.addColorStop(1,'rgba(0,0,0,.12)'); ctx.fillStyle=vign; ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  function update(now){
+    const dt=Math.min(.05,(now-last)/1000); last=now;
+    if(state==='PLAYING' && !paused){
+      if(mathPending){
+        mathTimeLeft=Math.max(0, mathTimeLeft-dt);
+        const ratio=mathTimeLeft/MATH_TIME_LIMIT;
+        document.getElementById('mathTimerText').textContent=mathTimeLeft.toFixed(1)+'초';
+        const fill=document.getElementById('mathTimerFill');
+        fill.style.width=(ratio*100)+'%';
+        fill.style.background=ratio<=0.3 ? '#fb7185' : (ratio<=0.55 ? '#fb923c' : '#facc15');
+        if(mathTimeLeft<=0) failMath();
+      } else {
+        hp -= levelDrainPerSec()*dt;
+        if(hp<=0){hp=0; updateHUD(); gameOver();}
+        updateHUD();
+        if(player.anim<1 && player.targetY!==player.y){ player.anim=Math.min(1,player.anim + dt/0.12); if(player.anim>=1){player.x=player.targetX; player.y=player.targetY;} }
+        if(visualFall){ visualFall=Math.min(1,visualFall+dt*2.7); }
+      }
+    }
+    render(); requestAnimationFrame(update);
+  }
+
+  function setEmbeddedWaiting(){
+    if(canvas.parentElement!==game) game.appendChild(canvas);
+    startScreen.classList.remove('hidden');
+    startScreen.querySelector('.sub').textContent='선생님이 게임을 시작하면 이 화면에서 함께 플레이합니다.';
+    playBtn.style.display='none';
+    controls.classList.add('hidden'); hud.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
+    adminSpectator.style.display='none';
+    state='TITLE';
+  }
+
+  function setAdminView(){
+    if(hostIsAdmin){
+      adminSpectatorView.appendChild(canvas);
+      startScreen.classList.add('hidden'); controls.classList.add('hidden'); hud.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden');
+      adminSpectator.style.display='flex';
+      state='SPECTATE';
+      playBtn.style.display='none';
+      buildInitialStairs();
+      adminMaxFloor=Math.max(1,...Object.values(otherPlayers||{}).map(p=>Number(p.floor)||1));
+      adminViewFloor=Math.max(1, Math.min(adminMaxFloor, adminViewFloor));
+      const oldFloor=floor; floor=adminViewFloor; ensureStepsAhead(); floor=oldFloor;
+      cameraX=0; cameraY=0;
+      snapAdminCamera();
+      updateAdminSpectatorInfo();
+      resize();
+      render();
+    } else {
+      setEmbeddedWaiting();
+    }
+  }
+
+  function snapAdminCamera(){
+    const first=steps.find(s=>s.floor===adminViewFloor) || steps[Math.max(0,adminViewFloor-1)];
+    if(first){ cameraX=first.x - W*.50; cameraY=first.y - H*.58; }
+    else { cameraX=0; cameraY=0; }
+  }
+
+  function updateAdminSpectatorInfo(){
+    if(!adminSpectatorInfo) return;
+    const names=Object.values(otherPlayers||{}).sort((a,b)=>(Number(b.floor)||1)-(Number(a.floor)||1));
+    if(!names.length){ adminSpectatorInfo.textContent='학생이 아직 게임을 시작하지 않았습니다.'; return; }
+    adminSpectatorInfo.textContent=`현재 보기 ${adminViewFloor}층 · 최고 ${adminMaxFloor}층 · ${names.slice(0,5).map(p=>`${p.name||'학생'} ${p.floor||1}층`).join(' / ')}`;
+  }
+
+  function moveAdminView(delta){
+    if(!hostIsAdmin) return;
+    adminAutoFollow=false;
+    adminViewFloor=Math.max(1,Math.min(Math.max(1,adminMaxFloor),adminViewFloor+delta));
+    const oldFloor=floor; floor=adminViewFloor; ensureStepsAhead(); floor=oldFloor;
+    snapAdminCamera(); updateAdminSpectatorInfo(); render();
+  }
+
+
+
+  if(adminUpBtn) adminUpBtn.addEventListener('click',()=>moveAdminView(10));
+  if(adminDownBtn) adminDownBtn.addEventListener('click',()=>moveAdminView(-10));
+  if(adminSpectatorView){
+    adminSpectatorView.addEventListener('touchstart',e=>{ if(!hostIsAdmin) return; adminSwipeStartY=e.touches[0].clientY; },{passive:true});
+    adminSpectatorView.addEventListener('touchend',e=>{ if(!hostIsAdmin || adminSwipeStartY==null) return; const dy=e.changedTouches[0].clientY-adminSwipeStartY; if(Math.abs(dy)>25) moveAdminView(dy<0?10:-10); adminSwipeStartY=null; },{passive:true});
+    adminSpectatorView.addEventListener('wheel',e=>{ if(!hostIsAdmin) return; e.preventDefault(); moveAdminView(e.deltaY>0?-5:5); },{passive:false});
+  }
+
+  window.addEventListener('message', (event)=>{
+    if(event.origin !== window.location.origin) return;
+    const d=event.data||{};
+    if(d.source!=='math-stairs') return;
+    if(d.type==='role'){
+      embeddedHost=true; hostIsAdmin=!!d.isAdmin; localPlayerId=d.selfId||localPlayerId;
+      if(Array.isArray(d.remotePlayers)) otherPlayers=Object.fromEntries(d.remotePlayers.map(p=>[p.id,p]));
+      if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed;
+      mathMode = d.mathMode === 'NORMAL' ? 'NORMAL' : 'MATH';
+      setAdminView();
+      return;
+    }
+    if(!embeddedHost || hostIsAdmin) return;
+    if(d.type==='start'){ mathMode = d.mathMode === 'NORMAL' ? 'NORMAL' : 'MATH'; startGame(d.mapSeed!=null?d.mapSeed:sharedSeed); return; }
+    if(d.type==='players'){ otherPlayers=d.players||{}; adminMaxFloor=Math.max(1,...Object.values(otherPlayers).map(p=>Number(p.floor)||1)); if(hostIsAdmin && adminAutoFollow) adminViewFloor=adminMaxFloor; if(adminViewFloor>adminMaxFloor) adminViewFloor=adminMaxFloor; if(hostIsAdmin){ const oldFloor=floor; floor=adminViewFloor; ensureStepsAhead(); floor=oldFloor; snapAdminCamera(); updateAdminSpectatorInfo(); render(); } return; }
+    if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
+  });
+
+  if(window.parent && window.parent !== window){
+    embeddedHost=true;
+    setEmbeddedWaiting();
+    notifyHost('ready'); notifyProfile();
+  }
+
+  requestAnimationFrame(update);
+})();
+</script>
+</template>
+        </div>
+
+        <div id="bomb-game-area" style="display:none; position:absolute; inset:0; flex-direction:column; align-items:center; justify-content:center; background:#0f172a; z-index:2200; overflow:hidden;">
+            <div id="bomb-timer" class="game-timer-big">💣 30초</div>
+            <div id="bomb-status" class="big-msg" style="margin:6px 0 10px;">폭탄 돌리기</div>
+            <div id="bomb-arena" class="bomb-arena"></div>
+            <div id="bomb-controls" class="bomb-controls" style="display:none;">
+                <button data-dir="up">▲</button><div><button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button></div>
+            </div>
+        </div>
+
+        <div id="color-match-game-area" style="display:none; position:absolute; inset:0; flex-direction:column; align-items:center; justify-content:center; background:#101522; z-index:2200; overflow:auto; padding:18px; box-sizing:border-box;">
+            <div id="color-match-round" class="game-timer-big">ROUND 1</div>
+            <div id="color-match-target" class="color-target-card">정답 색</div>
+            <div id="color-match-msg" class="big-msg">같은 색 타일을 선택하세요.</div>
+            <div id="color-match-tiles" class="color-match-tiles"></div>
         </div>
 
         <div id="memory-game-area" style="display:none; flex-direction:column; align-items:center;">
@@ -196,6 +1119,8 @@
                 <button class="admin-btn mode-select-btn" style="background:#e67e22; color:#fff;" onclick="req('MISSING_READY')">🕵️ 깜빡 퀴즈</button>
                 <button class="admin-btn mode-select-btn" style="background:#e84393; color:#fff;" onclick="req('MEMORY_READY')">🧠 기억력 게임</button>
                 <button class="admin-btn mode-select-btn" style="background:#00b894; color:#fff;" onclick="req('MATHSTAIRS_READY')">🪜 수학의 계단</button>
+                <button class="admin-btn mode-select-btn" style="background:#d63031; color:#fff;" onclick="req('BOMB_READY')">💣 폭탄 돌리기</button>
+                <button class="admin-btn mode-select-btn" style="background:#6c5ce7; color:#fff;" onclick="req('COLOR_MATCH_READY')">🎨 색 맞추기</button>
 
                 <div id="setting-row-updown" style="display:none;">
                     <div class="admin-setting-grid"><label>최대 숫자</label><input type="number" id="updown-max-input" value="100" onchange="socket.emit('setUpdownMax', this.value)"></div>
@@ -223,6 +1148,7 @@
                 <div id="setting-row-math-stairs" style="display:none;">
                     <div class="admin-setting-grid"><label>게임 모드</label><select id="math-stairs-mode-select" onchange="updateMathStairsSettings()"><option value="MATH">🧮 수학 모드</option><option value="NORMAL">🪜 일반 모드</option></select></div>
                 </div>
+                <div id="setting-row-bomb" style="display:none;"><div class="admin-setting-grid"><label>폭탄 시간</label><select id="bomb-time-select" onchange="socket.emit('setBombSettings',{time:parseInt(this.value)})"><option value="20">20초</option><option value="30" selected>30초</option><option value="45">45초</option><option value="60">60초</option></select></div></div>
 
                 <button id="admin-start-btn" class="admin-btn" onclick="socket.emit('startGameSignal')" style="background:#ff4757; display:none; margin-top:10px;">게임 시작</button>
                 <button id="admin-next-btn" class="admin-btn" onclick="socket.emit('adminNextRound')" style="background:#6c5ce7; display:none; margin-top:10px;">▶ 다음 문제/라운드</button>
@@ -235,5 +1161,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
+
+<script>document.addEventListener('DOMContentLoaded',function(){var f=document.getElementById('math-stairs-frame'),t=document.getElementById('math-stairs-template');if(f&&t){f.srcdoc=t.innerHTML;}});</script>
 </body>
 </html>
