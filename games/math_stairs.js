@@ -17,7 +17,8 @@ module.exports = {
         store.io.emit('mathStairsStart', {
             timestamp: Date.now(),
             mapSeed: store.data.mathStairsSeed,
-            mathProblems: store.data.mathStairsProblems
+            mathProblems: store.data.mathStairsProblems,
+            mathMode: store.settings.mathStairsMode === 'NORMAL' ? 'NORMAL' : 'MATH'
         });
         this.updateRanking(store);
     },

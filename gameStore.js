@@ -50,7 +50,8 @@ module.exports = {
         missingCategory: 'animal',
         missingSpeed: 10,
         missingCount: 5,
-        missingOptionCount: 4
+        missingOptionCount: 4,
+        mathStairsMode: 'MATH'
     },
 
     clearAllTimers() {

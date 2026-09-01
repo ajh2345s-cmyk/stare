@@ -1,4 +1,4 @@
-const HEART_EMOJIS = ['❤️', '💛', '💚', '💙', '💜', '🤍'];
+const HEART_EMOJIS = ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '🩷', '🩵', '🩶'];
 
 module.exports = {
     run: function(store, logic) {
@@ -25,7 +25,7 @@ module.exports = {
             if(!p.isAdmin) { p.memoryIndex = 0; p.memoryFinished = false; store.data.memoryStatus[id] = '진행중'; }
         });
 
-        const count = store.settings.memoryCount || 4;
+        const count = Math.max(4, Math.min(12, Number.parseInt(store.settings.memoryCount, 10) || 4));
         let positions = [];
         while (positions.length < count) {
             let pos = Math.floor(Math.random() * 12);

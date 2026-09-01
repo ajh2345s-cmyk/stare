@@ -19,7 +19,7 @@ let missingLock = true; let memoryLock = true; let memoryTargetSequence = []; le
 
 let studentDoneMap = {}; 
 let isStudentRankVisible = true; 
-const HEART_EMOJIS = ['❤️', '💛', '💚', '💙', '💜', '🤍'];
+const HEART_EMOJIS = ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '🩷', '🩵', '🩶'];
 
 const gameTitleMap = {
     'LOBBY': '🏫 대기실', 'UPDOWN_READY': '↕️ 업다운 게임', 'UPDOWN': '↕️ 업다운 게임',
@@ -94,6 +94,7 @@ function toggleFiftyTargetSelect() {
 function updateWolfSettings() { socket.emit('setWolfSettings', { sheepCount: parseInt($('wolf-sheep-cnt').value), wolfCount: parseInt($('wolf-cnt').value), speed: parseInt($('wolf-speed').value), shuffles: parseInt($('wolf-shuffles').value) }); }
 function updateMissingSettings() { socket.emit('setMissingSettings', { category: $('missing-cat').value, speed: parseInt($('missing-spd').value), count: parseInt($('missing-cnt').value), optionCount: parseInt($('missing-opt').value) }); }
 function updateMemorySettings() { socket.emit('setMemorySettings', { count: parseInt($('memory-cnt').value) }); }
+function updateMathStairsSettings() { socket.emit('setMathStairsSettings', { mode: $('math-stairs-mode-select').value }); }
 
 function confirmReset() { if (confirm("대기실로 돌아가시겠습니까?")) req('LOBBY'); }
 
@@ -122,6 +123,7 @@ socket.on('initData', d => {
         mathStairsStarted = !!d.mathStairsStarted;
         mathStairsStarted = !!d.mathStairsStarted;
         window._mathStairsProblems = d.mathStairsProblems || window._mathStairsProblems || null;
+        window._mathStairsMode = d.settings && d.settings.mathStairsMode === 'NORMAL' ? 'NORMAL' : 'MATH';
         isStudentRankVisible = d.isStudentRankVisible ?? true; 
         
         const lockBtn = $('lock-btn');
@@ -139,7 +141,11 @@ socket.on('initData', d => {
     } catch(e) { console.error(e); }
 });
 
-socket.on('settingsUpdated', s => { updateMemoryReadyDisplay(s); });
+socket.on('settingsUpdated', s => {
+    updateMemoryReadyDisplay(s);
+    const mathModeSelect = $('math-stairs-mode-select');
+    if (mathModeSelect && s && s.mathStairsMode) mathModeSelect.value = s.mathStairsMode;
+});
 
 socket.on('rankVisibilityUpdated', isVisible => {
     isStudentRankVisible = isVisible;
@@ -172,7 +178,7 @@ function updateUI() {
 
     if (isAdmin) {
         const modeBtns = document.querySelectorAll('.mode-select-btn');
-        ['admin-start-btn', 'admin-next-btn', 'admin-stop-btn', 'admin-force-end-btn', 'admin-force-round-end-btn', 'setting-row-updown', 'admin-updown-answer-box', 'setting-row-fifty', 'setting-row-bond', 'setting-row-wolf', 'setting-row-missing', 'setting-row-memory', 'logout-btn'].forEach(id => safeDisplay(id, 'none'));
+        ['admin-start-btn', 'admin-next-btn', 'admin-stop-btn', 'admin-force-end-btn', 'admin-force-round-end-btn', 'setting-row-updown', 'admin-updown-answer-box', 'setting-row-fifty', 'setting-row-bond', 'setting-row-wolf', 'setting-row-missing', 'setting-row-memory', 'setting-row-math-stairs', 'logout-btn'].forEach(id => safeDisplay(id, 'none'));
         if(modeBtns) modeBtns.forEach(b => b.style.display = 'none');
 
         const visBtn = $('toggle-rank-vis-btn');
@@ -199,7 +205,7 @@ function updateUI() {
             else if (mode.includes('WOLF')) { safeDisplay('setting-row-wolf', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MISSING')) { safeDisplay('setting-row-missing', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MEMORY')) { safeDisplay('setting-row-memory', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
-            else if (mode.includes('MATHSTAIRS')) { if(!isGameRunning) safeDisplay('admin-start-btn', 'block'); }
+            else if (mode.includes('MATHSTAIRS')) { safeDisplay('setting-row-math-stairs', 'block'); if(!isGameRunning) safeDisplay('admin-start-btn', 'block'); }
         }
     }
 
@@ -272,6 +278,8 @@ socket.on('hardReset', d => {
     safeText('wolf-msg', '선생님이 게임을 시작할 때까지 기다리세요!');
     safeDisplay('missing-quiz-view', 'none'); safeDisplay('missing-stage-view', 'flex'); safeText('missing-msg', '대기중...');
     safeText('memory-msg', '대기중...'); safeDisplay('memory-timer-display', 'none'); safeDisplay('memory-replay-btn', 'none');
+    const mathModeSelect = $('math-stairs-mode-select');
+    if (mathModeSelect && d && d.settings && d.settings.mathStairsMode) mathModeSelect.value = d.settings.mathStairsMode;
     Array.from(document.querySelectorAll('.mem-box')).forEach(b => b.classList.remove('show-heart', 'active', 'incorrect', 'preview-white'));
     updateMemoryReadyDisplay(d.settings);
     updateUI();
@@ -341,6 +349,7 @@ function notifyMathStairsFrame(action) {
             gameState: mathStairsStarted ? 'PLAYING' : 'WAITING',
             mapSeed: mathStairsSeed,
             mathProblems: window._mathStairsProblems || null,
+            mathMode: window._mathStairsMode || 'MATH',
             remotePlayers: window._mathStairsPlayers || [],
             selfId: myId
         }, window.location.origin);
@@ -351,7 +360,8 @@ function notifyMathStairsFrame(action) {
         source:'math-stairs',
         type: action,
         mapSeed: mathStairsSeed,
-        mathProblems: window._mathStairsProblems || null
+        mathProblems: window._mathStairsProblems || null,
+        mathMode: window._mathStairsMode || 'MATH'
     }, window.location.origin);
 }
 
@@ -376,6 +386,7 @@ socket.on('mathStairsStart', d => {
     mathStairsStarted = true;
     mathStairsStarted = true;
     window._mathStairsProblems = d && d.mathProblems ? d.mathProblems : null;
+    window._mathStairsMode = d && d.mathMode === 'NORMAL' ? 'NORMAL' : 'MATH';
     if (mode.includes('MATHSTAIRS') && !isAdmin) notifyMathStairsFrame('start');
 });
 

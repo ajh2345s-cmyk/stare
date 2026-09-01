@@ -217,7 +217,11 @@
                 </div>
 
                 <div id="setting-row-memory" style="display:none;">
-                    <div class="admin-setting-grid"><label>하트 개수</label><input type="number" id="memory-cnt" value="4" min="4" max="6" onchange="updateMemorySettings()"></div>
+                    <div class="admin-setting-grid"><label>하트 개수</label><input type="number" id="memory-cnt" value="4" min="4" max="12" onchange="updateMemorySettings()"></div>
+                </div>
+
+                <div id="setting-row-math-stairs" style="display:none;">
+                    <div class="admin-setting-grid"><label>게임 모드</label><select id="math-stairs-mode-select" onchange="updateMathStairsSettings()"><option value="MATH">🧮 수학 모드</option><option value="NORMAL">🪜 일반 모드</option></select></div>
                 </div>
 
                 <button id="admin-start-btn" class="admin-btn" onclick="socket.emit('startGameSignal')" style="background:#ff4757; display:none; margin-top:10px;">게임 시작</button>

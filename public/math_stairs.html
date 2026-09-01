@@ -199,6 +199,7 @@
   let paused=false;
   let floor=1;
   let best=Number(localStorage.getItem('mathStairsBest')||0);
+  let mathMode='MATH';
   let hp=100;
   let score=0;
   let facing=1; // 1 right, -1 left
@@ -331,7 +332,7 @@
     floor++; score++; hp=100; ensureStepsAhead();
     if(floor>best){best=floor; localStorage.setItem('mathStairsBest',String(best));}
     notifyHost('progress',{floor,score,state:'playing',x:next.x,y:next.y,facing,character:CHARACTERS[selectedChar],colorIndex:selectedColor});
-    updateHUD(); setTimeout(()=>{actionLock=false;if(floor%25===0)openMath();},120);
+    updateHUD(); setTimeout(()=>{actionLock=false;if(mathMode==='MATH' && floor%25===0)openMath();},120);
   }
   function randomMath(){
     const shared = window._mathStairsProblems && window._mathStairsProblems[floor];
@@ -813,11 +814,12 @@
       embeddedHost=true; hostIsAdmin=!!d.isAdmin; localPlayerId=d.selfId||localPlayerId;
       if(Array.isArray(d.remotePlayers)) otherPlayers=Object.fromEntries(d.remotePlayers.map(p=>[p.id,p]));
       if(d.mapSeed!=null) sharedSeed=(Number(d.mapSeed)>>>0)||sharedSeed;
+      mathMode = d.mathMode === 'NORMAL' ? 'NORMAL' : 'MATH';
       setAdminView();
       return;
     }
     if(!embeddedHost || hostIsAdmin) return;
-    if(d.type==='start'){ startGame(d.mapSeed!=null?d.mapSeed:sharedSeed); return; }
+    if(d.type==='start'){ mathMode = d.mathMode === 'NORMAL' ? 'NORMAL' : 'MATH'; startGame(d.mapSeed!=null?d.mapSeed:sharedSeed); return; }
     if(d.type==='players'){ otherPlayers=d.players||{}; return; }
     if(d.type==='reset'){ state='TITLE'; paused=false; mathPending=false; actionLock=false; visualFall=0; hud.classList.add('hidden'); controls.classList.add('hidden'); mathScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); pauseScreen.classList.add('hidden'); setEmbeddedWaiting(); }
   });

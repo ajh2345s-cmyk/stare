@@ -49,7 +49,7 @@ store.settings = {
     fiftyMode: 'NORMAL', fiftyTargetId: null,
     wolfSpeed: 5, wolfShuffles: 15, wolfCount: 1, wolfSheepCount: 8, 
     missingCategory: 'animal', missingSpeed: 10, missingCount: 5, missingOptionCount: 4,
-    memoryCount: 4
+    memoryCount: 4, mathStairsMode: 'MATH'
 };
 
 app.use(express.static(path.join(__dirname, 'public'))); 
@@ -276,7 +276,19 @@ io.on('connection', (socket) => {
         broadcastSettings();
     });
     socket.on('setMissingSettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.missingCategory = data.category; store.settings.missingSpeed = data.speed; store.settings.missingCount = data.count; store.settings.missingOptionCount = data.optionCount; broadcastSettings(); } });
-    socket.on('setMemorySettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.memoryCount = data.count; broadcastSettings(); } });
+    socket.on('setMemorySettings', (data) => {
+        if (store.players[socket.id]?.isAdmin) {
+            const rawCount = Number.parseInt(data?.count, 10);
+            store.settings.memoryCount = Number.isFinite(rawCount) ? Math.max(4, Math.min(12, rawCount)) : 4;
+            broadcastSettings();
+        }
+    });
+    socket.on('setMathStairsSettings', (data) => {
+        if (store.players[socket.id]?.isAdmin) {
+            store.settings.mathStairsMode = data?.mode === 'NORMAL' ? 'NORMAL' : 'MATH';
+            broadcastSettings();
+        }
+    });
 
     socket.on('adminNextRound', () => { 
         try { 
