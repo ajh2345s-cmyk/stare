@@ -1,5 +1,6 @@
 const store = require('./gameStore'); 
-let gameUpdown, gameFifty, gameBond, gameWolf, gameMissing, gameMemory, gameMathStairs;
+const { competitionRanks, rankLines } = require('./rankUtils');
+let gameUpdown, gameFifty, gameBond, gameWolf, gameMissing, gameMemory, gameMathStairs, gameSudoku;
 function loadGame(name) {
     try { return require(`./games/${name}`); }
     catch (error) { console.error(`[game-load] ${name} 모듈을 불러오지 못했습니다.`, error); return null; }
@@ -11,6 +12,7 @@ gameWolf = loadGame('wolf');
 gameMissing = loadGame('missing');
 gameMemory = loadGame('memory');
 gameMathStairs = loadGame('math_stairs');
+gameSudoku = loadGame('sudoku');
 
 const logic = {};
 
@@ -28,7 +30,7 @@ logic.resetGame = function(mode = 'LOBBY') {
         store.data = { ...commonData, gameStartPending: false, mathStairsStarted: false };
         
         store.data.updownScores = {}; store.data.fiftyScores = {}; store.data.fiftyFinishTimes = {};
-        store.data.bondScores = {}; store.data.wolfScores = {}; store.data.missingScores = {}; store.data.memoryScores = {}; store.data.mathStairsScores = {};
+        store.data.bondScores = {}; store.data.wolfScores = {}; store.data.missingScores = {}; store.data.memoryScores = {}; store.data.mathStairsScores = {}; store.data.sudokuScores = {}; store.data.sudokuBoards = {};
 
         let newPlayers = {};
         if (store.players) {
@@ -37,6 +39,7 @@ logic.resetGame = function(mode = 'LOBBY') {
                     let p = store.players[id];
                     p.isAlive = !p.isAdmin; p.updownFinished = false; p.updownAttempts = 0;
                     p.fiftyTarget = 1; p.fiftyFinished = false; newPlayers[id] = p;
+                    p.sudokuFinished = false;
                 }
             });
         }
@@ -72,7 +75,7 @@ logic.startGame = function() {
             Object.keys(store.players).forEach(id => {
                 if (store.players[id] && !store.players[id].isAdmin) {
                     store.players[id].isAlive = true; store.players[id].fiftyTarget = 1; store.players[id].fiftyFinished = false;
-                    if(store.data) { store.data.updownScores[id] = 0; store.data.fiftyScores[id] = 1; store.data.bondScores[id] = 0; store.data.wolfScores[id] = 0; store.data.missingScores[id] = 0; store.data.memoryScores[id] = 0; store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'ready' }; }
+                    if(store.data) { store.data.updownScores[id] = 0; store.data.fiftyScores[id] = 1; store.data.bondScores[id] = 0; store.data.wolfScores[id] = 0; store.data.missingScores[id] = 0; store.data.memoryScores[id] = 0; store.data.mathStairsScores[id] = { floor: 1, score: 0, state: 'ready' }; store.data.sudokuScores[id] = { filled: 0, finished: false, time: null, mistakes: 0 }; }
                 }
             });
         }
@@ -96,6 +99,7 @@ logic.startGameLogic = function() {
         else if (mode.includes('MISSING') && gameMissing) { gameMissing.run(store, logic); gameMissing.nextRound(store); }
         else if (mode.includes('MEMORY') && gameMemory) { gameMemory.run(store, logic); gameMemory.nextRound(store, logic); }
         else if (mode.includes('MATHSTAIRS') && gameMathStairs) { gameMathStairs.run(store, logic); } 
+        else if (mode.includes('SUDOKU') && gameSudoku) { gameSudoku.run(store, logic); }
     } catch (error) { console.error(error); }
 };
 
@@ -111,8 +115,9 @@ logic.forceEndGame = function() {
             gameUpdown.checkFinish(store, logic);
             if(store.gameState !== 'WAITING') {
                  let sorted = Object.entries(store.data.updownScores || {}).filter(([id, attempts]) => store.players[id] && (store.players[id].updownFinished || Number(attempts) > 0)).sort((a, b) => a[1] - b[1]);
-                 let winners = sorted.length > 0 ? sorted.filter(r => r[1] === sorted[0][1]).map(r => store.players[r[0]].name) : [];
-                 let rankMsg = sorted.slice(0, 10).map((e, i) => `${i+1}위: ${store.players[e[0]].name} (${e[1]}회)`).join('<br>');
+                 const ranked = competitionRanks(sorted.map(([id, attempts]) => ({ name: store.players[id].name, attempts })), e => e.attempts);
+                 let winners = ranked.filter(e => e.rank === 1).map(e => e.name);
+                 let rankMsg = rankLines(ranked.slice(0, 10), e => `${e.attempts}회`);
                  logic.endGame("업다운 게임 종료", winners, rankMsg);
             }
         }
@@ -122,6 +127,7 @@ logic.forceEndGame = function() {
         else if (mode.includes('MISSING') && gameMissing) gameMissing.endGame(store, logic);
         else if (mode.includes('MEMORY') && gameMemory) gameMemory.endGame(store, logic);
         else if (mode.includes('MATHSTAIRS') && gameMathStairs) gameMathStairs.endGame(store, logic);
+        else if (mode.includes('SUDOKU') && gameSudoku) gameSudoku.endGame(store, logic);
         else logic.endGame("강제 종료", [], "선생님에 의해 종료되었습니다.");
     } catch (error) { console.error(error); }
 };

@@ -147,6 +147,17 @@
             </div>
         </div>
 
+        <div id="sudoku-game-area" style="display:none; flex-direction:column; align-items:center; width:100%;">
+            <div id="sudoku-info" class="big-msg">선생님이 게임을 시작할 때까지 기다리세요!</div>
+            <div id="sudoku-grid" aria-label="스도쿠 판"></div>
+            <div id="sudoku-keypad"></div>
+            <div class="sudoku-actions">
+                <button id="sudoku-erase-btn" class="sudoku-action-btn" onclick="sudokuSetValue(0)">지우기</button>
+                <button id="sudoku-submit-btn" class="sudoku-action-btn submit" onclick="sudokuSubmit()">정답 제출</button>
+            </div>
+            <div id="sudoku-feedback"></div>
+        </div>
+
         <div id="math-stairs-game-area" style="display:none; position:absolute; inset:0; width:100%; height:100%; z-index:2200; background:#111827;">
             <iframe id="math-stairs-frame" title="수학의 계단" src="/math_stairs.html" style="display:block; width:100%; height:100%; border:0; margin:0; padding:0; background:#111827;" allow="fullscreen"></iframe>
         </div>
@@ -196,6 +207,7 @@
                 <button class="admin-btn mode-select-btn" style="background:#e67e22; color:#fff;" onclick="req('MISSING_READY')">🕵️ 깜빡 퀴즈</button>
                 <button class="admin-btn mode-select-btn" style="background:#e84393; color:#fff;" onclick="req('MEMORY_READY')">🧠 기억력 게임</button>
                 <button class="admin-btn mode-select-btn" style="background:#00b894; color:#fff;" onclick="req('MATHSTAIRS_READY')">🪜 수학의 계단</button>
+                <button class="admin-btn mode-select-btn" style="background:#6c5ce7; color:#fff;" onclick="req('SUDOKU_READY')">🧩 스도쿠</button>
 
                 <div id="setting-row-updown" style="display:none;">
                     <div class="admin-setting-grid"><label>최대 숫자</label><input type="number" id="updown-max-input" value="100" min="2" max="10000" onchange="socket.emit('setUpdownMax', this.value)"></div>
@@ -222,6 +234,23 @@
 
                 <div id="setting-row-math-stairs" style="display:none;">
                     <div class="admin-setting-grid"><label>게임 모드</label><select id="math-stairs-mode-select" onchange="updateMathStairsSettings()"><option value="MATH">🧮 수학 모드</option><option value="NORMAL">🪜 일반 모드</option></select></div>
+                </div>
+
+                <div id="setting-row-sudoku" style="display:none;">
+                    <div class="admin-setting-grid">
+                        <label>판 크기</label>
+                        <select id="sudoku-type-select" onchange="updateSudokuSettings()">
+                            <option value="2X2">2×2 블록 (4×4)</option>
+                            <option value="3X2">3×2 블록 (6×6)</option>
+                            <option value="3X3">3×3 블록 (9×9)</option>
+                        </select>
+                        <label>난이도</label>
+                        <select id="sudoku-difficulty-select" onchange="updateSudokuSettings()">
+                            <option value="EASY">초급</option>
+                            <option value="MEDIUM">중급</option>
+                            <option value="HARD">고급</option>
+                        </select>
+                    </div>
                 </div>
 
                 <button id="admin-start-btn" class="admin-btn" onclick="socket.emit('startGameSignal')" style="background:#ff4757; display:none; margin-top:10px;">게임 시작</button>

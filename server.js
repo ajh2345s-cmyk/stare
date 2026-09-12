@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const store = require('./gameStore');
 const logic = require('./gameLogic');
 const mathStairs = require('./games/math_stairs');
+const sudoku = require('./games/sudoku');
 
 const app = express();
 const server = http.createServer(app);
@@ -64,7 +65,7 @@ store.settings = {
     fiftyMode: 'NORMAL', fiftyTargetId: null,
     wolfSpeed: 5, wolfShuffles: 15, wolfCount: 1, wolfSheepCount: 8, 
     missingCategory: 'animal', missingSpeed: 10, missingCount: 5, missingOptionCount: 4,
-    memoryCount: 4, mathStairsMode: 'MATH'
+    memoryCount: 4, mathStairsMode: 'MATH', sudokuType: '2X2', sudokuDifficulty: 'EASY'
 };
 
 app.use(express.static(path.join(__dirname, 'public'))); 
@@ -101,7 +102,7 @@ io.on('connection', (socket) => {
                         store.adminId = socket.id;
                     }
 
-                    const dicts = ['updownScores', 'fiftyScores', 'fiftyFinishTimes', 'bondScores', 'bondStatus', 'wolfScores', 'wolfStatus', 'wolfFound', 'missingScores', 'missingStatus', 'memoryScores', 'memoryStatus', 'mathStairsScores'];
+                    const dicts = ['updownScores', 'fiftyScores', 'fiftyFinishTimes', 'bondScores', 'bondStatus', 'wolfScores', 'wolfStatus', 'wolfFound', 'missingScores', 'missingStatus', 'memoryScores', 'memoryStatus', 'mathStairsScores', 'sudokuScores', 'sudokuBoards'];
                     dicts.forEach(dict => {
                         if (store.data[dict] && store.data[dict][oldId] !== undefined) {
                             store.data[dict][socket.id] = store.data[dict][oldId];
@@ -119,6 +120,7 @@ io.on('connection', (socket) => {
                         mathStairsSeed: store.data.mathStairsSeed || null,
                         mathStairsProblems: store.data.mathStairsProblems || null,
                         mathStairsStarted: !!store.data.mathStairsStarted,
+                        sudokuState: store.gameMode === 'SUDOKU' && store.data.sudokuPuzzle ? sudoku.publicState(store, socket.id) : null,
                         isLocked: !!store.data.isLocked
                     });
                     io.emit('updateUserList', store.players);
@@ -186,6 +188,9 @@ io.on('connection', (socket) => {
                     store.data.memoryStatus[socket.id] = null;
                     store.data.mathStairsScores = store.data.mathStairsScores || {};
                     store.data.mathStairsScores[socket.id] = { floor: 1, score: 0, state: 'ready' };
+                    store.data.sudokuScores = store.data.sudokuScores || {};
+                    store.data.sudokuScores[socket.id] = { filled: 0, finished: false, time: null, mistakes: 0 };
+                    p.sudokuFinished = false;
                 }
 
                 const token = newToken();
@@ -200,6 +205,7 @@ io.on('connection', (socket) => {
                 mathStairsSeed: store.data.mathStairsSeed || null,
                 mathStairsProblems: store.data.mathStairsProblems || null,
                 mathStairsStarted: !!store.data.mathStairsStarted,
+                sudokuState: store.gameMode === 'SUDOKU' && store.data.sudokuPuzzle ? sudoku.publicState(store, socket.id) : null,
                 isLocked: !!store.data.isLocked 
             });
             io.emit('updateUserList', store.players);
@@ -209,7 +215,7 @@ io.on('connection', (socket) => {
     socket.on('changeModeRequest', (mode) => { 
         try { 
             if (store.players[socket.id]?.isAdmin) {
-                const allowedModes = ['LOBBY', 'UPDOWN_READY', 'FIFTY_READY', 'BOND_READY', 'WOLF_READY', 'MISSING_READY', 'MEMORY_READY', 'MATHSTAIRS_READY'];
+                const allowedModes = ['LOBBY', 'UPDOWN_READY', 'FIFTY_READY', 'BOND_READY', 'WOLF_READY', 'MISSING_READY', 'MEMORY_READY', 'MATHSTAIRS_READY', 'SUDOKU_READY'];
                 if (!allowedModes.includes(mode)) return;
                 const wasLocked = store.data.isLocked; 
                 logic.resetGame(mode); 
@@ -333,6 +339,12 @@ io.on('connection', (socket) => {
             broadcastSettings();
         }
     });
+    socket.on('setSudokuSettings', (data) => {
+        if (!store.players[socket.id]?.isAdmin) return;
+        store.settings.sudokuType = ['2X2', '3X2', '3X3'].includes(data?.type) ? data.type : '2X2';
+        store.settings.sudokuDifficulty = ['EASY', 'MEDIUM', 'HARD'].includes(data?.difficulty) ? data.difficulty : 'EASY';
+        broadcastSettings();
+    });
 
     socket.on('adminNextRound', () => { 
         try { 
@@ -367,6 +379,8 @@ io.on('connection', (socket) => {
     socket.on('wolfSubmit', (idx) => { try { require('./games/wolf').handleInput(store, logic, socket.id, idx); } catch(e) { console.error('[socket]', e); } });
     socket.on('missingSubmit', (choice) => { try { require('./games/missing').handleInput(store, logic, socket.id, choice); } catch(e) { console.error('[socket]', e); } });
     socket.on('memorySubmit', (action) => { try { require('./games/memory').handleInput(store, logic, socket.id, action); } catch(e) { console.error('[socket]', e); } });
+    socket.on('sudokuProgress', (board) => { try { sudoku.handleProgress(store, logic, socket.id, board, false); } catch(e) { console.error('[socket]', e); } });
+    socket.on('sudokuSubmit', (board) => { try { sudoku.handleProgress(store, logic, socket.id, board, true); } catch(e) { console.error('[socket]', e); } });
 
 
     socket.on('mathStairsProgress', (data) => { try { mathStairs.handleProgress(store, socket.id, data); } catch(e) { console.error('[socket]', e); } });
@@ -398,6 +412,10 @@ io.on('connection', (socket) => {
                     const game = require('./games/memory'); game.updateAdminStatus(store);
                     if (active.length > 0 && active.every(p => p.memoryFinished)) io.emit('memoryRoundComplete');
                 } else if (store.gameMode === 'BOND') require('./games/bond').updateAdminStatus(store);
+                else if (store.gameMode === 'SUDOKU') {
+                    sudoku.updateRanking(store);
+                    if (active.length > 0 && active.every(p => p.sudokuFinished)) sudoku.endGame(store, logic);
+                }
             }
         } catch (e) { console.error('[disconnect]', e); }
     });

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { competitionRanks, rankLines } = require('../rankUtils');
 module.exports = {
     run: function(store, logic) {
         store.gameMode = 'MATHSTAIRS';
@@ -122,9 +123,10 @@ module.exports = {
                 return { id, name: store.players[id].name, floor: s.floor || 1, score: s.score || 0, state: s.state || 'ready', character: s.character || 'circle', colorIndex: Number.isInteger(s.colorIndex) ? s.colorIndex : 0, x: Number(s.x)||0, y: Number(s.y)||0, facing: Number(s.facing)<0 ? -1 : 1 };
             })
             .sort((a,b) => b.floor - a.floor || b.score - a.score || a.name.localeCompare(b.name));
-        const rows = entries.map((e,i) => {
+        const ranked = competitionRanks(entries, e => `${e.floor}:${e.score}`);
+        const rows = ranked.map(e => {
             const stateText = e.state === 'gameover' ? '💥 끝' : (e.state === 'ready' ? '⏳ 대기' : '▶ 진행');
-            return { rank: i + 1, name: e.name, value: `${e.floor}층`, status: stateText, tone: e.state === 'gameover' ? 'success' : 'progress' };
+            return { rank: e.rank, name: e.name, value: `${e.floor}층`, status: stateText, tone: e.state === 'gameover' ? 'success' : 'progress' };
         });
         store.io.emit('liveRankUpdate', { rows });
         store.io.emit('mathStairsPlayersUpdate', entries.map(e => ({ id:e.id, name:e.name, floor:e.floor, score:e.score, state:e.state, character:e.character || 'circle', colorIndex:Number.isInteger(e.colorIndex)?e.colorIndex:0, x:e.x, y:e.y, facing:e.facing })));
@@ -163,8 +165,9 @@ module.exports = {
                 return { name: store.players[id].name, floor: s.floor || 1, score: s.score || 0 };
             })
             .sort((a,b) => b.floor - a.floor || b.score - a.score);
-        const winners = entries.length ? [entries[0].name] : [];
-        const rankMsg = entries.map((e,i) => `${i+1}위: ${e.name} (${e.floor}층)`).join('<br>');
+        const ranked = competitionRanks(entries, e => `${e.floor}:${e.score}`);
+        const winners = ranked.filter(e => e.rank === 1).map(e => e.name);
+        const rankMsg = rankLines(ranked, e => `${e.floor}층`);
         logic.endGame('🪜 수학의 계단 결과', winners, rankMsg || '참여한 학생이 없습니다.');
     }
 };

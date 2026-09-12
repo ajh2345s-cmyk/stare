@@ -1,3 +1,4 @@
+const { competitionRanks, rankLines } = require('../rankUtils');
 module.exports = {
     run: function(store, logic) {
         store.gameMode = 'FIFTY';
@@ -69,8 +70,9 @@ module.exports = {
             return b.score - a.score; 
         });
 
-        const rows = entries.map((e, i) => ({
-            rank: i + 1, name: e.name,
+        const ranked = competitionRanks(entries, e => e.finished ? `F:${e.time}` : `P:${e.score}`);
+        const rows = ranked.map(e => ({
+            rank: e.rank, name: e.name,
             value: e.finished ? `${e.time}초` : `${e.score - 1}`,
             status: e.finished ? '🏁 완주' : '진행중', tone: e.finished ? 'success' : 'progress'
         }));
@@ -85,9 +87,10 @@ module.exports = {
             .filter(e => store.players[e.id].fiftyFinished)
             .sort((a, b) => a.time - b.time);
 
-        let winners = entries.length > 0 ? [entries[0].name] : [];
+        const ranked = competitionRanks(entries, e => e.time);
+        let winners = ranked.filter(e => e.rank === 1).map(e => e.name);
         // [수정됨] 10등 제한 없앰 (완주한 모든 학생 표시)
-        let rankMsg = entries.map((e, i) => `${i+1}위: ${e.name} (${e.time}초)`).join('<br>');
+        let rankMsg = rankLines(ranked, e => `${e.time}초`);
 
         const mode = store.settings.fiftyMode || 'NORMAL';
         let extraHtml = "";

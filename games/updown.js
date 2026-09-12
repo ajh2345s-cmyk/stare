@@ -1,4 +1,5 @@
 // games/updown.js
+const { competitionRanks, rankLines } = require('../rankUtils');
 module.exports = {
     run: function(store, logic) {
         store.gameMode = 'UPDOWN';
@@ -76,18 +77,15 @@ module.exports = {
             let sorted = Object.entries(store.data.updownScores)
                 .filter(([id]) => store.players[id] && store.players[id].updownFinished)
                 .sort((a, b) => a[1] - b[1]);
+            const ranked = competitionRanks(sorted.map(([id, attempts]) => ({ id, name: store.players[id].name, attempts })), e => e.attempts);
 
             let winners = [];
             if (sorted.length > 0) {
-                const minTry = sorted[0][1];
-                winners = sorted.filter(r => r[1] === minTry).map(r => store.players[r[0]].name);
+                winners = ranked.filter(r => r.rank === 1).map(r => r.name);
             }
             
             // [수정됨] 10등 제한 없앰 (모든 학생 표시)
-            let rankMsg = sorted.map((e, i) => {
-                const p = store.players[e[0]];
-                return `${i+1}위: ${p.name} (${e[1]}회)`;
-            }).join('<br>');
+            let rankMsg = rankLines(ranked, e => `${e.attempts}회`);
 
             logic.endGame("업다운 게임 종료", winners, rankMsg);
         }
@@ -105,10 +103,11 @@ module.exports = {
             return a[1] - b[1];
         });
 
-        const rows = entries.map((entry, i) => {
-            const p = store.players[entry[0]];
+        const ranked = competitionRanks(entries.map(([id, attempts]) => ({ id, attempts, player: store.players[id] })), e => `${e.player.updownFinished ? 'F' : 'P'}:${e.attempts}`);
+        const rows = ranked.map(entry => {
+            const p = entry.player;
             const status = p.updownFinished ? "✅" : "도전중";
-            return { rank: i + 1, name: p.name, value: `${entry[1]}회`, status, tone: p.updownFinished ? 'success' : 'progress' };
+            return { rank: entry.rank, name: p.name, value: `${entry.attempts}회`, status, tone: p.updownFinished ? 'success' : 'progress' };
         });
         store.io.emit('liveRankUpdate', { rows });
     }

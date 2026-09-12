@@ -16,6 +16,7 @@ let bondBuffer = ""; let isBondFinished = false;
 
 let wolfLock = true; let wolfPositions = []; 
 let missingLock = true; let memoryLock = true; let memoryTargetSequence = []; let memoryUserIndex = 0;
+let sudokuBoard = []; let sudokuPuzzle = []; let sudokuConfig = null; let sudokuSelected = null; let sudokuFinished = false;
 
 let studentDoneMap = {}; 
 let isStudentRankVisible = true; 
@@ -26,7 +27,8 @@ const gameTitleMap = {
     'FIFTY_READY': '🔢 1 to 50', 'FIFTY': '🔢 1 to 50', 'BOND_READY': '🍒 가르기 모으기', 'BOND': '🍒 가르기 모으기',
     'WOLF_READY': '🐺 늑대를 찾아라', 'WOLF': '🐺 늑대를 찾아라', 'MISSING_READY': '🕵️ 깜빡 퀴즈', 'MISSING': '🕵️ 깜빡 퀴즈',
     'MEMORY_READY': '🧠 기억력 게임', 'MEMORY': '🧠 기억력 게임',
-    'MATHSTAIRS_READY': '🪜 수학의 계단', 'MATHSTAIRS': '🪜 수학의 계단'
+    'MATHSTAIRS_READY': '🪜 수학의 계단', 'MATHSTAIRS': '🪜 수학의 계단',
+    'SUDOKU_READY': '🧩 스도쿠', 'SUDOKU': '🧩 스도쿠'
 };
 
 window.onload = () => {
@@ -95,6 +97,7 @@ function updateWolfSettings() { socket.emit('setWolfSettings', { sheepCount: par
 function updateMissingSettings() { socket.emit('setMissingSettings', { category: $('missing-cat').value, speed: parseInt($('missing-spd').value), count: parseInt($('missing-cnt').value), optionCount: parseInt($('missing-opt').value) }); }
 function updateMemorySettings() { socket.emit('setMemorySettings', { count: parseInt($('memory-cnt').value) }); }
 function updateMathStairsSettings() { socket.emit('setMathStairsSettings', { mode: $('math-stairs-mode-select').value }); }
+function updateSudokuSettings() { socket.emit('setSudokuSettings', { type: $('sudoku-type-select').value, difficulty: $('sudoku-difficulty-select').value }); }
 
 function confirmReset() { if (confirm("대기실로 돌아가시겠습니까?")) req('LOBBY'); }
 
@@ -119,6 +122,7 @@ socket.on('initData', d => {
     try {
         safeDisplay('login-screen', 'none');
         myId = d.myId; isAdmin = d.isAdmin; mode = d.gameMode || 'LOBBY'; players = d.players || {};
+        isGameRunning = ['COUNTDOWN', 'PLAYING', 'RESULT'].includes(d.gameState);
         mathStairsSeed = d.mathStairsSeed ?? mathStairsSeed;
         mathStairsStarted = !!d.mathStairsStarted;
         window._mathStairsProblems = d.mathStairsProblems || window._mathStairsProblems || null;
@@ -133,6 +137,9 @@ socket.on('initData', d => {
 
         if (isAdmin) { safeDisplay('admin-panel', 'flex'); updateUserListAdmin(); }
         updateMemoryReadyDisplay(d.settings);
+        if ($('sudoku-type-select') && d.settings?.sudokuType) $('sudoku-type-select').value = d.settings.sudokuType;
+        if ($('sudoku-difficulty-select') && d.settings?.sudokuDifficulty) $('sudoku-difficulty-select').value = d.settings.sudokuDifficulty;
+        if (d.sudokuState) startSudoku(d.sudokuState);
         updateUI();
         notifyMathStairsFrame('role');
         // 수학의 계단은 서버의 mathStairsStart 신호로만 시작한다.
@@ -144,6 +151,9 @@ socket.on('settingsUpdated', s => {
     updateMemoryReadyDisplay(s);
     const mathModeSelect = $('math-stairs-mode-select');
     if (mathModeSelect && s && s.mathStairsMode) mathModeSelect.value = s.mathStairsMode;
+    const sudokuType = $('sudoku-type-select'); const sudokuDifficulty = $('sudoku-difficulty-select');
+    if (sudokuType && s?.sudokuType) sudokuType.value = s.sudokuType;
+    if (sudokuDifficulty && s?.sudokuDifficulty) sudokuDifficulty.value = s.sudokuDifficulty;
 });
 
 socket.on('rankVisibilityUpdated', isVisible => {
@@ -157,7 +167,7 @@ function renderLobbyGrid() {
         if(p.isBot) return; 
         const card = document.createElement('div'); card.className = 'lobby-card';
         if (p.isAdmin) card.classList.add('admin'); if (p.id === myId) card.classList.add('me');
-        card.innerText = (p.isAdmin ? '👑 ' : (p.connected === false ? '🔴 ' : '🟢 ')) + p.name; grid.appendChild(card);
+        card.innerText = (p.isAdmin ? '👑 ' : '') + p.name; grid.appendChild(card);
     });
 }
 
@@ -169,7 +179,7 @@ function updateUI() {
     const adminLabel = $('admin-label-users');
     if (adminLabel) adminLabel.innerHTML = `학생 관리 <span style="color:#f1c40f;font-size:10px;">(접속 ${onlineCount}/${stuCount}명)</span> <span class="toggle-btn">[접기]</span>`;
 
-    ['lobby-view', 'updown-game-area', 'fifty-game-area', 'bond-game-area', 'wolf-game-area', 'missing-game-area', 'memory-game-area', 'math-stairs-game-area', 'live-rank', 'status-panel'].forEach(id => safeDisplay(id, 'none'));
+    ['lobby-view', 'updown-game-area', 'fifty-game-area', 'bond-game-area', 'wolf-game-area', 'missing-game-area', 'memory-game-area', 'math-stairs-game-area', 'sudoku-game-area', 'live-rank', 'status-panel'].forEach(id => safeDisplay(id, 'none'));
 
     if (mode !== 'LOBBY') {
         if (isAdmin || isStudentRankVisible) safeDisplay('live-rank', 'block');
@@ -178,7 +188,7 @@ function updateUI() {
 
     if (isAdmin) {
         const modeBtns = document.querySelectorAll('.mode-select-btn');
-        ['admin-start-btn', 'admin-next-btn', 'admin-stop-btn', 'admin-force-end-btn', 'admin-force-round-end-btn', 'setting-row-updown', 'admin-updown-answer-box', 'setting-row-fifty', 'setting-row-bond', 'setting-row-wolf', 'setting-row-missing', 'setting-row-memory', 'setting-row-math-stairs', 'logout-btn'].forEach(id => safeDisplay(id, 'none'));
+        ['admin-start-btn', 'admin-next-btn', 'admin-stop-btn', 'admin-force-end-btn', 'admin-force-round-end-btn', 'setting-row-updown', 'admin-updown-answer-box', 'setting-row-fifty', 'setting-row-bond', 'setting-row-wolf', 'setting-row-missing', 'setting-row-memory', 'setting-row-math-stairs', 'setting-row-sudoku', 'logout-btn'].forEach(id => safeDisplay(id, 'none'));
         if(modeBtns) modeBtns.forEach(b => b.style.display = 'none');
 
         const visBtn = $('toggle-rank-vis-btn');
@@ -206,6 +216,7 @@ function updateUI() {
             else if (mode.includes('MISSING')) { safeDisplay('setting-row-missing', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MEMORY')) { safeDisplay('setting-row-memory', 'block'); if(isGameRunning) safeDisplay('admin-next-btn', 'block'); else safeDisplay('admin-start-btn', 'block'); }
             else if (mode.includes('MATHSTAIRS')) { safeDisplay('setting-row-math-stairs', 'block'); if(!isGameRunning) safeDisplay('admin-start-btn', 'block'); }
+            else if (mode.includes('SUDOKU')) { safeDisplay('setting-row-sudoku', 'block'); if(!isGameRunning) safeDisplay('admin-start-btn', 'block'); }
         }
     }
 
@@ -224,6 +235,7 @@ function updateUI() {
         else if (mode.includes('MISSING')) safeDisplay('missing-game-area', 'flex');
         else if (mode.includes('MEMORY')) safeDisplay('memory-game-area', 'flex');
         else if (mode.includes('MATHSTAIRS')) safeDisplay('math-stairs-game-area', 'flex');
+        else if (mode.includes('SUDOKU')) safeDisplay('sudoku-game-area', 'flex');
     }
 }
 
@@ -285,8 +297,14 @@ socket.on('hardReset', d => {
     safeText('wolf-msg', '선생님이 게임을 시작할 때까지 기다리세요!');
     safeDisplay('missing-quiz-view', 'none'); safeDisplay('missing-stage-view', 'flex'); safeText('missing-msg', '대기중...');
     safeText('memory-msg', '대기중...'); safeDisplay('memory-timer-display', 'none'); safeDisplay('memory-replay-btn', 'none');
+    sudokuBoard = []; sudokuPuzzle = []; sudokuConfig = null; sudokuSelected = null; sudokuFinished = false;
+    if ($('sudoku-grid')) $('sudoku-grid').replaceChildren();
+    if ($('sudoku-keypad')) $('sudoku-keypad').replaceChildren();
+    safeText('sudoku-feedback', ''); safeText('sudoku-info', '선생님이 게임을 시작할 때까지 기다리세요!');
     const mathModeSelect = $('math-stairs-mode-select');
     if (mathModeSelect && d && d.settings && d.settings.mathStairsMode) mathModeSelect.value = d.settings.mathStairsMode;
+    if ($('sudoku-type-select') && d?.settings?.sudokuType) $('sudoku-type-select').value = d.settings.sudokuType;
+    if ($('sudoku-difficulty-select') && d?.settings?.sudokuDifficulty) $('sudoku-difficulty-select').value = d.settings.sudokuDifficulty;
     Array.from(document.querySelectorAll('.mem-box')).forEach(b => b.classList.remove('show-heart', 'active', 'incorrect', 'preview-white'));
     updateMemoryReadyDisplay(d.settings);
     updateUI();
@@ -412,9 +430,10 @@ socket.on('liveRankUpdate', payload => {
     c.replaceChildren();
     const rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
     if (!rows.length) { const empty = document.createElement('div'); empty.className = 'rank-empty'; empty.textContent = '대기 중...'; c.appendChild(empty); return; }
+    const rankCounts = rows.reduce((map, item) => map.set(item.rank, (map.get(item.rank) || 0) + 1), new Map());
     rows.forEach(item => {
         const row = document.createElement('div'); row.className = 'rank-row';
-        const rank = document.createElement('span'); rank.className = 'rank-position'; rank.textContent = `${item.rank}위`;
+        const rank = document.createElement('span'); rank.className = 'rank-position'; rank.textContent = `${rankCounts.get(item.rank) > 1 ? '공동 ' : ''}${item.rank}위`;
         const name = document.createElement('span'); name.className = 'rank-name'; name.textContent = String(item.name || '');
         if (item.status) { const status = document.createElement('small'); status.className = 'rank-status'; status.textContent = ` ${item.status}`; name.appendChild(status); }
         const value = document.createElement('span'); value.className = `rank-value ${item.tone === 'success' ? 'success' : 'progress'}`; value.textContent = String(item.value || '');
@@ -747,3 +766,90 @@ function memoryClick(idx) {
         }, 1000);
     }
 }
+
+const sudokuDifficultyNames = { EASY: '초급', MEDIUM: '중급', HARD: '고급' };
+
+function startSudoku(data) {
+    if (!data || !Array.isArray(data.puzzle) || !data.config) return;
+    sudokuPuzzle = data.puzzle.map(row => row.slice());
+    sudokuBoard = Array.isArray(data.board) && data.board.length === data.config.size ? data.board.map(row => row.slice()) : data.puzzle.map(row => row.slice());
+    sudokuConfig = data.config;
+    sudokuSelected = null; sudokuFinished = false;
+    const grid = $('sudoku-grid'); const keypad = $('sudoku-keypad');
+    if (!grid || !keypad) return;
+    grid.replaceChildren(); keypad.replaceChildren();
+    grid.style.setProperty('--sudoku-size', sudokuConfig.size);
+    grid.style.setProperty('--sudoku-box-cols', sudokuConfig.boxCols);
+    keypad.style.setProperty('--sudoku-size', sudokuConfig.size);
+    grid.className = `sudoku-size-${sudokuConfig.size}`;
+    for (let r = 0; r < sudokuConfig.size; r++) for (let c = 0; c < sudokuConfig.size; c++) {
+        const cell = document.createElement('button');
+        cell.type = 'button'; cell.className = 'sudoku-cell'; cell.dataset.row = r; cell.dataset.col = c;
+        if (sudokuPuzzle[r][c]) { cell.classList.add('fixed'); cell.textContent = sudokuPuzzle[r][c]; }
+        else { cell.addEventListener('click', () => sudokuSelect(r, c)); }
+        if ((c + 1) % sudokuConfig.boxCols === 0 && c + 1 < sudokuConfig.size) cell.classList.add('box-right');
+        if ((r + 1) % sudokuConfig.boxRows === 0 && r + 1 < sudokuConfig.size) cell.classList.add('box-bottom');
+        grid.appendChild(cell);
+    }
+    for (let n = 1; n <= sudokuConfig.size; n++) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'sudoku-number-btn'; button.textContent = n;
+        button.addEventListener('click', () => sudokuSetValue(n)); keypad.appendChild(button);
+    }
+    const typeName = `${sudokuConfig.boxCols}×${sudokuConfig.boxRows} 블록 · ${sudokuConfig.size}×${sudokuConfig.size}`;
+    safeText('sudoku-info', `${typeName} · ${sudokuDifficultyNames[sudokuConfig.difficulty] || '초급'}`);
+    safeText('sudoku-feedback', isAdmin ? '학생들과 같은 문제를 보고 있습니다.' : '빈칸을 선택하고 숫자를 눌러보세요.');
+    safeDisplay('sudoku-keypad', isAdmin ? 'none' : 'grid');
+    safeDisplay('sudoku-erase-btn', isAdmin ? 'none' : 'inline-block');
+    safeDisplay('sudoku-submit-btn', isAdmin ? 'none' : 'inline-block');
+    renderSudoku();
+}
+
+function sudokuSelect(row, col) {
+    if (isAdmin || sudokuFinished || sudokuPuzzle[row]?.[col]) return;
+    sudokuSelected = { row, col }; renderSudoku();
+}
+
+function sudokuSetValue(value) {
+    if (isAdmin || sudokuFinished || !sudokuSelected || !sudokuConfig) return;
+    const { row, col } = sudokuSelected;
+    if (sudokuPuzzle[row][col]) return;
+    sudokuBoard[row][col] = Number(value) || 0;
+    renderSudoku();
+    socket.emit('sudokuProgress', sudokuBoard);
+}
+
+function sudokuConflicts(row, col, value) {
+    if (!value || !sudokuConfig) return false;
+    for (let i = 0; i < sudokuConfig.size; i++) {
+        if (i !== col && sudokuBoard[row][i] === value) return true;
+        if (i !== row && sudokuBoard[i][col] === value) return true;
+    }
+    const r0 = Math.floor(row / sudokuConfig.boxRows) * sudokuConfig.boxRows;
+    const c0 = Math.floor(col / sudokuConfig.boxCols) * sudokuConfig.boxCols;
+    for (let r = r0; r < r0 + sudokuConfig.boxRows; r++) for (let c = c0; c < c0 + sudokuConfig.boxCols; c++) {
+        if ((r !== row || c !== col) && sudokuBoard[r][c] === value) return true;
+    }
+    return false;
+}
+
+function renderSudoku() {
+    if (!sudokuConfig) return;
+    document.querySelectorAll('#sudoku-grid .sudoku-cell').forEach(cell => {
+        const r = Number(cell.dataset.row), c = Number(cell.dataset.col), value = sudokuBoard[r][c];
+        cell.textContent = value || '';
+        cell.classList.toggle('selected', !!sudokuSelected && sudokuSelected.row === r && sudokuSelected.col === c);
+        cell.classList.toggle('conflict', !sudokuPuzzle[r][c] && sudokuConflicts(r, c, value));
+    });
+}
+
+function sudokuSubmit() {
+    if (isAdmin || sudokuFinished || !sudokuConfig) return;
+    if (sudokuBoard.some(row => row.some(value => !value))) { safeText('sudoku-feedback', '아직 빈칸이 남아 있어요.'); return; }
+    socket.emit('sudokuSubmit', sudokuBoard);
+}
+
+socket.on('sudokuStart', data => startSudoku(data));
+socket.on('sudokuFeedback', data => {
+    safeText('sudoku-feedback', data?.message || '');
+    if (data?.correct) { sudokuFinished = true; sudokuSelected = null; renderSudoku(); }
+});

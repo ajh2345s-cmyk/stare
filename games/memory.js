@@ -1,3 +1,4 @@
+const { competitionRanks, rankLines } = require('../rankUtils');
 const HEART_EMOJIS = ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '🩷', '🩵', '🩶'];
 
 module.exports = {
@@ -147,7 +148,8 @@ module.exports = {
             .map(id => ({ name: store.players[id].name, score: store.data.memoryScores[id] || 0, status: store.data.memoryStatus[id] || '', finished: store.players[id].memoryFinished }))
             .sort((a, b) => b.score - a.score);
 
-        const rows = entries.map((e, i) => ({ rank: i + 1, name: e.name, value: `${e.score}점`, status: e.status, tone: e.finished ? 'success' : 'progress' }));
+        const ranked = competitionRanks(entries, e => e.score);
+        const rows = ranked.map(e => ({ rank: e.rank, name: e.name, value: `${e.score}점`, status: e.status, tone: e.finished ? 'success' : 'progress' }));
         store.io.emit('liveRankUpdate', { rows });
     },
 
@@ -155,8 +157,9 @@ module.exports = {
         store.clearAllTimers();
         let entries = Object.keys(store.players).filter(id => !store.players[id].isAdmin && store.players[id].isAlive).map(id => ({ name: store.players[id].name, score: store.data.memoryScores[id] })).sort((a, b) => b.score - a.score);
         if (entries.length === 0) { logic.endGame("기억력 게임 종료", [], "참여한 학생이 없습니다."); return; }
-        let winners = entries.filter(e => e.score === entries[0].score).map(e => e.name);
-        let rankMsg = entries.slice(0, 10).map((e, i) => `${i+1}위: ${e.name} (${e.score}점)`).join('<br>');
+        const ranked = competitionRanks(entries, e => e.score);
+        let winners = ranked.filter(e => e.rank === 1).map(e => e.name);
+        let rankMsg = rankLines(ranked.slice(0, 10), e => `${e.score}점`);
         logic.endGame("🧠 기억력 게임 최종 순위!", winners, rankMsg);
     }
 };

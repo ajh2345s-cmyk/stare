@@ -1,3 +1,4 @@
+const { competitionRanks } = require('../rankUtils');
 module.exports = {
     run: function(store, logic) {
         store.gameMode = 'BOND';
@@ -134,9 +135,10 @@ module.exports = {
             .filter(([id, s]) => store.players[id] && !store.players[id].isAdmin)
             .sort((a, b) => b[1] - a[1]);
 
-        const rows = entries.map((entry, i) => {
-            const p = store.players[entry[0]];
-            return { rank: i + 1, name: p.name, value: `${entry[1]}개`, tone: 'progress' };
+        const ranked = competitionRanks(entries.map(([id, score]) => ({ id, score })), e => e.score);
+        const rows = ranked.map(entry => {
+            const p = store.players[entry.id];
+            return { rank: entry.rank, name: p.name, value: `${entry.score}개`, tone: 'progress' };
         });
         store.io.emit('liveRankUpdate', { rows });
     },
@@ -148,21 +150,15 @@ module.exports = {
 
         if (entries.length === 0) { logic.endGame("가르기 모으기 종료", [], "참여한 학생이 없습니다."); return; }
 
-        let finalRank = [];
-        let currentRank = 1;
-        for (let i = 0; i < entries.length; i++) {
-            const [id, score] = entries[i];
-            const name = store.players[id].name;
-            if (i > 0 && score === entries[i-1][1]) {
-                finalRank[finalRank.length - 1].names.push(name);
-            } else {
-                if (currentRank > 3) break; 
-                finalRank.push({ rank: currentRank, score: score, names: [name] });
-                currentRank++;
-            }
-        }
+        const ranked = competitionRanks(entries.map(([id, score]) => ({ name: store.players[id].name, score })), e => e.score);
+        const finalRank = [];
+        ranked.filter(e => e.rank <= 3).forEach(e => {
+            let group = finalRank.find(g => g.rank === e.rank);
+            if (!group) { group = { rank: e.rank, score: e.score, names: [] }; finalRank.push(group); }
+            group.names.push(e.name);
+        });
 
-        let htmlMsg = finalRank.map(r => `<div style="margin:5px 0;"><span style="font-size:20px; color:#f1c40f;">${r.rank}등</span> <span style="font-size:14px;">(${r.score}개)</span><br><span style="font-weight:bold; font-size:18px;">${r.names.join(', ')}</span></div>`).join('<hr style="border:0; border-top:1px dashed #aaa; margin:5px 0;">');
+        let htmlMsg = finalRank.map(r => `<div style="margin:5px 0;"><span style="font-size:20px; color:#f1c40f;">${r.names.length > 1 ? '공동 ' : ''}${r.rank}등</span> <span style="font-size:14px;">(${r.score}개)</span><br><span style="font-weight:bold; font-size:18px;">${r.names.join(', ')}</span></div>`).join('<hr style="border:0; border-top:1px dashed #aaa; margin:5px 0;">');
         logic.endGame("🎉 명예의 전당 (Top 3)", [], htmlMsg);
     }
 };

@@ -31,7 +31,8 @@ module.exports = {
 
         memoryScores: {},
         memoryStatus: {},
-        memoryRound: 0
+        memoryRound: 0,
+        sudokuScores: {}
     },
 
     settings: {
@@ -51,7 +52,9 @@ module.exports = {
         missingSpeed: 10,
         missingCount: 5,
         missingOptionCount: 4,
-        mathStairsMode: 'MATH'
+        mathStairsMode: 'MATH',
+        sudokuType: '2X2',
+        sudokuDifficulty: 'EASY'
     },
 
     clearAllTimers() {

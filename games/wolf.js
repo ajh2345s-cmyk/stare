@@ -1,3 +1,4 @@
+const { competitionRanks, rankLines } = require('../rankUtils');
 function clampInt(value, min, max, fallback) {
     const n = Number.parseInt(value, 10);
     return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
@@ -210,9 +211,10 @@ module.exports = {
         const entries = Object.entries(store.data.wolfScores || {})
             .filter(([id]) => store.players[id] && !store.players[id].isAdmin)
             .sort((a,b) => (b[1] || 0) - (a[1] || 0));
-        const rows = entries.map((entry, i) => {
-            const p = store.players[entry[0]];
-            return { rank: i + 1, name: p.name, value: `${entry[1] || 0}점`, tone: 'progress' };
+        const ranked = competitionRanks(entries.map(([id, score]) => ({ id, score: score || 0 })), e => e.score);
+        const rows = ranked.map(entry => {
+            const p = store.players[entry.id];
+            return { rank: entry.rank, name: p.name, value: `${entry.score}점`, tone: 'progress' };
         });
         store.io.emit('liveRankUpdate', { rows });
     },
@@ -225,8 +227,9 @@ module.exports = {
             logic.endGame('늑대를 찾아라 종료', [], '참여한 학생이 없습니다.');
             return;
         }
-        const winners = entries.filter(e => e[1] === entries[0][1]).map(e => store.players[e[0]].name);
-        const rankMsg = entries.slice(0, 10).map((e, i) => `${i+1}위: ${store.players[e[0]].name} (${e[1]}점)`).join('<br>');
+        const ranked = competitionRanks(entries.map(([id, score]) => ({ name: store.players[id].name, score })), e => e.score);
+        const winners = ranked.filter(e => e.rank === 1).map(e => e.name);
+        const rankMsg = rankLines(ranked.slice(0, 10), e => `${e.score}점`);
         logic.endGame('🐺 늑대를 찾아라! 명예의 전당', winners, rankMsg);
     }
 };

@@ -1,3 +1,4 @@
+const { competitionRanks, rankLines } = require('../rankUtils');
 const CATEGORY_DB = {
     animal: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐻‍❄️','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐒','🦍','🦧','🐕','🐺','🦝','🐅','🐆','🐴','🦓','🦌','🦬','🐄','🐏','🐐','🐪','🦒','🐘','🦏','🦛','🐁','🐇','🐿️','🦔','🦇','🦥','🦦','🦘','🦃','🐔','🐤','🐦','🐧','🦅','🦆','🦢','🦉','🦩','🦚','🦜','🐊','🐢','🦎','🐍','🐲','🦕','🦖','🐳','🐬','🦭','🐟','🐡','🦈','🐙','🦑','🦐','🦀','🐌','🦋','🐛','🐜','🐝','🐞','🦗','🕷️'],
     food: ['🍏','🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🌽','🥕','🧄','🧅','🥔','🍠','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🌭','🍔','🍟','🍕','🥪','🌮','🌯','🥗','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🍤','🍙','🍚','🍘','🍥','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🥛','🍼','☕','🍵','🧃'],
@@ -100,9 +101,10 @@ module.exports = {
 
     updateRanking: function(store) {
         let entries = Object.entries(store.data.missingScores).filter(([id]) => store.players[id] && !store.players[id].isAdmin).sort((a, b) => b[1] - a[1]);
-        const rows = entries.map((entry, i) => {
-            const p = store.players[entry[0]];
-            return { rank: i + 1, name: p.name, value: `${entry[1]}점`, tone: 'progress' };
+        const ranked = competitionRanks(entries.map(([id, score]) => ({ id, score })), e => e.score);
+        const rows = ranked.map(entry => {
+            const p = store.players[entry.id];
+            return { rank: entry.rank, name: p.name, value: `${entry.score}점`, tone: 'progress' };
         });
         store.io.emit('liveRankUpdate', { rows });
     },
@@ -110,8 +112,9 @@ module.exports = {
     endGame: function(store, logic) {
         let entries = Object.entries(store.data.missingScores).filter(([id]) => store.players[id] && !store.players[id].isAdmin).sort((a, b) => b[1] - a[1]);
         if (entries.length === 0) { logic.endGame("깜빡 퀴즈 종료", [], "참여한 학생이 없습니다."); return; }
-        let winners = entries.filter(e => e[1] === entries[0][1]).map(e => store.players[e[0]].name);
-        let rankMsg = entries.slice(0, 10).map((e, i) => `${i+1}위: ${store.players[e[0]].name} (${e[1]}점)`).join('<br>');
+        const ranked = competitionRanks(entries.map(([id, score]) => ({ name: store.players[id].name, score })), e => e.score);
+        let winners = ranked.filter(e => e.rank === 1).map(e => e.name);
+        let rankMsg = rankLines(ranked.slice(0, 10), e => `${e.score}점`);
         logic.endGame("🕵️ 깜빡 퀴즈 명예의 전당", winners, rankMsg);
     }
 };
