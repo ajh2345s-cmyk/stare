@@ -27,19 +27,21 @@ module.exports = {
         store.timerMain = setInterval(() => {
             if (store.gameState !== 'PLAYING') { clearInterval(store.timerMain); return; }
             this.updateRanking(store);
-            const alive = Object.values(store.players).filter(p => !p.isAdmin && p.isAlive);
+            const alive = Object.values(store.players).filter(p => !p.isAdmin && p.isAlive && p.connected !== false);
             const finished = alive.filter(p => p.fiftyFinished);
             if (alive.length > 0 && alive.length === finished.length) this.endGame(store, logic);
-        }, 500);
+        }, 1000);
     },
 
     handleInput: function(store, logic, socketId, num) {
         // [핵심 수정] 선생님이 게임을 강제 종료했으면(PLAYING이 아니면) 더 이상 입력받지 않음!
-        if (store.gameState !== 'PLAYING') return;
+        if (store.gameState !== 'PLAYING' || store.gameMode !== 'FIFTY') return;
 
         const p = store.players[socketId];
-        if (!p || !p.isAlive || p.isAdmin || p.fiftyFinished) return;
-        if (num === p.fiftyTarget) {
+        if (!p || !p.isAlive || p.connected === false || p.isAdmin || p.fiftyFinished) return;
+        const clicked = Number.parseInt(num, 10);
+        if (!Number.isInteger(clicked) || clicked < 1 || clicked > 50) return;
+        if (clicked === p.fiftyTarget) {
             p.fiftyTarget++; 
             store.data.fiftyScores[socketId] = p.fiftyTarget;
             if (p.fiftyTarget > 50) {
@@ -67,24 +69,12 @@ module.exports = {
             return b.score - a.score; 
         });
 
-        // [수정됨] 10등 제한 없앰 (모든 학생 표시)
-        let rankText = entries.map((e, i) => {
-            if (e.finished) {
-                return `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.1); align-items:center;">
-                    <span style="color:#aaa; font-size:11px; width:30px;">${i+1}위</span>
-                    <span style="font-weight:bold; flex:1; text-align:left; padding-left:5px;">${e.name}</span>
-                    <span style="color:#55efc4; font-size:12px;">🏁 ${e.time}초</span>
-                </div>`;
-            } else {
-                return `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.1); align-items:center;">
-                    <span style="color:#aaa; font-size:11px; width:30px;">${i+1}위</span>
-                    <span style="font-weight:bold; flex:1; text-align:left; padding-left:5px;">${e.name}</span>
-                    <span style="color:#f1c40f; font-size:12px;">진행중(${e.score - 1})</span>
-                </div>`;
-            }
-        }).join('');
-
-        store.io.emit('liveRankUpdate', rankText || "<div style='color:#ccc; text-align:center;'>대기 중...</div>");
+        const rows = entries.map((e, i) => ({
+            rank: i + 1, name: e.name,
+            value: e.finished ? `${e.time}초` : `${e.score - 1}`,
+            status: e.finished ? '🏁 완주' : '진행중', tone: e.finished ? 'success' : 'progress'
+        }));
+        store.io.emit('liveRankUpdate', { rows });
     },
 
     endGame: function(store, logic) {

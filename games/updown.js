@@ -34,11 +34,13 @@ module.exports = {
     },
 
     handleInput: function(store, logic, socketId, number) {
+        if (store.gameState !== 'PLAYING' || store.gameMode !== 'UPDOWN') return;
         const p = store.players[socketId];
-        if (!p || !p.isAlive || p.isAdmin || p.updownFinished) return;
+        if (!p || !p.isAlive || p.connected === false || p.isAdmin || p.updownFinished) return;
 
         const target = store.data.updownTarget;
-        const guess = parseInt(number);
+        const guess = Number.parseInt(number, 10);
+        if (!Number.isInteger(guess) || guess < 1 || guess > Number(store.settings.updownMax)) return;
         
         p.updownAttempts++;
         store.data.updownScores[socketId] = p.updownAttempts;
@@ -63,7 +65,7 @@ module.exports = {
     },
 
     checkFinish: function(store, logic) {
-        const alive = Object.values(store.players).filter(p => !p.isAdmin && p.isAlive);
+        const alive = Object.values(store.players).filter(p => !p.isAdmin && p.isAlive && p.connected !== false);
         const finished = alive.filter(p => p.updownFinished);
 
         // 살아있는 전원이 정답을 맞추면 종료
@@ -72,7 +74,7 @@ module.exports = {
             
             // 시도 횟수 적은 순 1등 찾기
             let sorted = Object.entries(store.data.updownScores)
-                .filter(([id, score]) => store.players[id])
+                .filter(([id]) => store.players[id] && store.players[id].updownFinished)
                 .sort((a, b) => a[1] - b[1]);
 
             let winners = [];
@@ -103,14 +105,11 @@ module.exports = {
             return a[1] - b[1];
         });
 
-        // [수정됨] 10등 제한 없앰 (모든 학생 표시)
-        let rankText = entries.map((entry, i) => {
+        const rows = entries.map((entry, i) => {
             const p = store.players[entry[0]];
             const status = p.updownFinished ? "✅" : "도전중";
-            return `${i+1}위: ${p.name} (${entry[1]}회) ${status}`;
-        }).join('<br>');
-
-        if (rankText === "") rankText = "대기 중...";
-        store.io.emit('liveRankUpdate', rankText);
+            return { rank: i + 1, name: p.name, value: `${entry[1]}회`, status, tone: p.updownFinished ? 'success' : 'progress' };
+        });
+        store.io.emit('liveRankUpdate', { rows });
     }
 };

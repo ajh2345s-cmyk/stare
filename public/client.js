@@ -121,7 +121,6 @@ socket.on('initData', d => {
         myId = d.myId; isAdmin = d.isAdmin; mode = d.gameMode || 'LOBBY'; players = d.players || {};
         mathStairsSeed = d.mathStairsSeed ?? mathStairsSeed;
         mathStairsStarted = !!d.mathStairsStarted;
-        mathStairsStarted = !!d.mathStairsStarted;
         window._mathStairsProblems = d.mathStairsProblems || window._mathStairsProblems || null;
         window._mathStairsMode = d.settings && d.settings.mathStairsMode === 'NORMAL' ? 'NORMAL' : 'MATH';
         isStudentRankVisible = d.isStudentRankVisible ?? true; 
@@ -158,16 +157,17 @@ function renderLobbyGrid() {
         if(p.isBot) return; 
         const card = document.createElement('div'); card.className = 'lobby-card';
         if (p.isAdmin) card.classList.add('admin'); if (p.id === myId) card.classList.add('me');
-        card.innerText = (p.isAdmin ? '👑 ' : '') + p.name; grid.appendChild(card);
+        card.innerText = (p.isAdmin ? '👑 ' : (p.connected === false ? '🔴 ' : '🟢 ')) + p.name; grid.appendChild(card);
     });
 }
 
 function updateUI() {
     let stuCount = Object.values(players).filter(p => !p.isAdmin).length;
+    let onlineCount = Object.values(players).filter(p => !p.isAdmin && p.connected !== false).length;
     safeText('game-title-badge', (gameTitleMap[mode] || "수학 놀이 도구") + ` (${stuCount}명)`);
     
     const adminLabel = $('admin-label-users');
-    if (adminLabel) adminLabel.innerHTML = `학생 관리 <span style="color:#f1c40f;font-size:10px;">(${stuCount}명)</span> <span class="toggle-btn">[접기]</span>`;
+    if (adminLabel) adminLabel.innerHTML = `학생 관리 <span style="color:#f1c40f;font-size:10px;">(접속 ${onlineCount}/${stuCount}명)</span> <span class="toggle-btn">[접기]</span>`;
 
     ['lobby-view', 'updown-game-area', 'fifty-game-area', 'bond-game-area', 'wolf-game-area', 'missing-game-area', 'memory-game-area', 'math-stairs-game-area', 'live-rank', 'status-panel'].forEach(id => safeDisplay(id, 'none'));
 
@@ -231,15 +231,22 @@ socket.on('updateUserList', p => { players = p || {}; if (mode === 'LOBBY') rend
 
 function updateUserListAdmin() {
     const list = $('admin-user-list'); const ts = $('fifty-target-select'); let curr = ts ? ts.value : "";
-    if (list) list.innerHTML = ''; if (ts) ts.innerHTML = '<option value="">-- 타겟 선택 --</option>';
+    if (list) list.replaceChildren();
+    if (ts) { ts.replaceChildren(); const base = document.createElement('option'); base.value = ''; base.textContent = '-- 타겟 선택 --'; ts.appendChild(base); }
     Object.values(players).forEach(p => {
         if (p.isAdmin) return;
         let statusIcon = "";
         if (typeof mode === 'string' && (mode.includes('BOND') || mode.includes('WOLF') || mode.includes('MISSING') || mode.includes('MEMORY'))) {
             statusIcon = studentDoneMap[p.name] || "⏳"; 
         }
-        if (list) list.innerHTML += `<div class="kick-row"><span>${p.name} ${statusIcon}</span><button class="x-btn" onclick="kickUser('${p.id}')">✕</button></div>`;
-        if (ts) ts.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+        if (list) {
+            const row = document.createElement('div'); row.className = 'kick-row';
+            const label = document.createElement('span');
+            label.textContent = `${p.connected === false ? '🔴' : '🟢'} ${p.name}${p.connected === false ? ' (연결 끊김)' : ''}${statusIcon ? ` ${statusIcon}` : ''}`;
+            const button = document.createElement('button'); button.className = 'x-btn'; button.textContent = '✕';
+            button.addEventListener('click', () => kickUser(p.id)); row.append(label, button); list.appendChild(row);
+        }
+        if (ts && p.connected !== false) { const option = document.createElement('option'); option.value = p.id; option.textContent = p.name; ts.appendChild(option); }
     });
     if (ts && curr) ts.value = curr;
 }
@@ -384,7 +391,6 @@ window.addEventListener('message', (event) => {
 socket.on('mathStairsStart', d => {
     mathStairsSeed = d && d.mapSeed != null ? Number(d.mapSeed) >>> 0 : mathStairsSeed;
     mathStairsStarted = true;
-    mathStairsStarted = true;
     window._mathStairsProblems = d && d.mathProblems ? d.mathProblems : null;
     window._mathStairsMode = d && d.mathMode === 'NORMAL' ? 'NORMAL' : 'MATH';
     if (mode.includes('MATHSTAIRS') && !isAdmin) notifyMathStairsFrame('start');
@@ -401,7 +407,20 @@ socket.on('mathStairsPlayersUpdate', list => {
     }, window.location.origin);
 });
 
-socket.on('liveRankUpdate', r => { const c = $('rank-content'); if(c) c.innerHTML = r; });
+socket.on('liveRankUpdate', payload => {
+    const c = $('rank-content'); if (!c) return;
+    c.replaceChildren();
+    const rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
+    if (!rows.length) { const empty = document.createElement('div'); empty.className = 'rank-empty'; empty.textContent = '대기 중...'; c.appendChild(empty); return; }
+    rows.forEach(item => {
+        const row = document.createElement('div'); row.className = 'rank-row';
+        const rank = document.createElement('span'); rank.className = 'rank-position'; rank.textContent = `${item.rank}위`;
+        const name = document.createElement('span'); name.className = 'rank-name'; name.textContent = String(item.name || '');
+        if (item.status) { const status = document.createElement('small'); status.className = 'rank-status'; status.textContent = ` ${item.status}`; name.appendChild(status); }
+        const value = document.createElement('span'); value.className = `rank-value ${item.tone === 'success' ? 'success' : 'progress'}`; value.textContent = String(item.value || '');
+        row.append(rank, name, value); c.appendChild(row);
+    });
+});
 
 socket.on('statusBoardUpdate', list => {
     if (!isAdmin) return;
@@ -716,10 +735,10 @@ function memoryClick(idx) {
     if(idx === memoryTargetSequence[memoryUserIndex]) {
         box.classList.add('active', 'show-heart');
         memoryUserIndex++;
-        socket.emit('memorySubmit', 'CORRECT'); 
+        socket.emit('memorySubmit', { type: 'SELECT', index: idx }); 
         if(memoryUserIndex === memoryTargetSequence.length) { memoryLock = true; }
     } else {
-        memoryLock = true; box.classList.add('incorrect'); socket.emit('memorySubmit', 'WRONG');
+        memoryLock = true; box.classList.add('incorrect'); socket.emit('memorySubmit', { type: 'SELECT', index: idx });
         setTimeout(() => { 
             box.classList.remove('incorrect'); memoryUserIndex = 0;
             const boxes = Array.from(document.querySelectorAll('.mem-box'));

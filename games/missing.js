@@ -26,27 +26,30 @@ module.exports = {
         store.data.missingRound++;
         Object.keys(store.players).forEach(id => { if(!store.players[id].isAdmin) store.data.missingStatus[id] = null; });
 
-        const category = store.settings.missingCategory || 'animal';
-        const speed = store.settings.missingSpeed || 10; 
-        const flashCount = store.settings.missingCount || 5;
-        const optionCount = store.settings.missingOptionCount || 4;
+        const category = CATEGORY_DB[store.settings.missingCategory] ? store.settings.missingCategory : 'animal';
+        const speed = Math.max(1, Math.min(30, Number.parseInt(store.settings.missingSpeed, 10) || 10));
+        const sourcePool = CATEGORY_DB[category];
+        const flashCount = Math.max(2, Math.min(sourcePool.length - 1, Number.parseInt(store.settings.missingCount, 10) || 5));
+        const optionCount = Math.max(2, Math.min(12, flashCount + 1, Number.parseInt(store.settings.missingOptionCount, 10) || 4));
 
-        let pool = [...CATEGORY_DB[category]].sort(() => Math.random() - 0.5);
+        let pool = [...sourcePool].sort(() => Math.random() - 0.5);
         let shownEmojis = pool.slice(0, flashCount);
-        let correctAnswer = pool[flashCount + 1];
+        let correctAnswer = pool[flashCount];
         store.data.currentMissingTarget = correctAnswer;
 
         let wrongOptions = [...shownEmojis].sort(() => Math.random() - 0.5).slice(0, optionCount - 1);
         let options = [...wrongOptions, correctAnswer].sort(() => Math.random() - 0.5);
 
-        store.io.emit('missingStartRound', { round: store.data.missingRound, shownEmojis, correctAnswer, options, speed: speed * 100 });
+        store.io.emit('missingStartRound', { round: store.data.missingRound, shownEmojis, options, speed: speed * 100 });
         this.updateAdminStatus(store);
         this.updateRanking(store);
     },
 
     handleInput: function(store, logic, socketId, choice) {
+        if (store.gameState !== 'PLAYING' || store.gameMode !== 'MISSING') return;
         const p = store.players[socketId];
-        if (!p || !p.isAlive || p.isAdmin || store.data.missingStatus[socketId] !== null) return; 
+        if (!p || !p.isAlive || p.connected === false || p.isAdmin || store.data.missingStatus[socketId] !== null) return; 
+        if (typeof choice !== 'string' || !choice || choice.length > 16) return;
 
         if (choice === store.data.currentMissingTarget) {
             // [NaN 방지]
@@ -60,7 +63,7 @@ module.exports = {
 
         this.updateRanking(store); this.updateAdminStatus(store);
 
-        const alive = Object.values(store.players).filter(p => !p.isAdmin && p.isAlive);
+        const alive = Object.values(store.players).filter(p => !p.isAdmin && p.isAlive && p.connected !== false);
         const answered = alive.filter(p => store.data.missingStatus[p.id] !== null);
         
         if (alive.length > 0 && alive.length === answered.length) {
@@ -71,7 +74,7 @@ module.exports = {
 
     forceRoundEnd: function(store, logic) {
         Object.values(store.players).forEach(p => {
-            if (!p.isAdmin && p.isAlive && store.data.missingStatus[p.id] === null) {
+            if (!p.isAdmin && p.isAlive && p.connected !== false && store.data.missingStatus[p.id] === null) {
                 store.data.missingStatus[p.id] = 'wrong';
                 store.io.to(p.id).emit('missingResult', { correct: false });
             }
@@ -90,21 +93,18 @@ module.exports = {
             const stat = store.data.missingStatus[id];
             if (stat === 'correct') statusList.correct.push(p.name);
             else if (stat === 'wrong') statusList.wrong.push(p.name);
-            else statusList.yet.push(p.name);
+            else if (p.connected !== false) statusList.yet.push(p.name);
         });
         store.io.to(store.adminId).emit('statusBoardUpdate', statusList);
     },
 
     updateRanking: function(store) {
         let entries = Object.entries(store.data.missingScores).filter(([id]) => store.players[id] && !store.players[id].isAdmin).sort((a, b) => b[1] - a[1]);
-        let rankText = entries.map((entry, i) => {
+        const rows = entries.map((entry, i) => {
             const p = store.players[entry[0]];
-            return `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.1); align-items:center;">
-                <span style="color:#aaa; font-size:11px; width:30px;">${i+1}위</span>
-                <span style="font-weight:bold; flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:5px;">${p.name}</span>
-                <span style="color:#f1c40f; font-weight:bold; font-size:13px;">${entry[1]}점</span></div>`;
-        }).join('');
-        store.io.emit('liveRankUpdate', rankText || "<div style='color:#ccc; text-align:center;'>대기 중...</div>");
+            return { rank: i + 1, name: p.name, value: `${entry[1]}점`, tone: 'progress' };
+        });
+        store.io.emit('liveRankUpdate', { rows });
     },
 
     endGame: function(store, logic) {

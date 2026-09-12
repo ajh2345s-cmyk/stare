@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const crypto = require('crypto');
 
 const store = require('./gameStore');
 const logic = require('./gameLogic');
@@ -12,11 +13,25 @@ const server = http.createServer(app);
 const io = socketIo(server, {
     reconnection: true,
     pingInterval: 10000,
-    pingTimeout: 20000
+    pingTimeout: 20000,
+    maxHttpBufferSize: 100000
 });
 
 store.io = io;
 store.tokens = store.tokens || {}; 
+
+const clampInt = (value, min, max, fallback) => {
+    const n = Number.parseInt(value, 10);
+    return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+};
+const activeStudents = () => Object.values(store.players || {}).filter(p => p && !p.isAdmin && !p.isBot && p.isAlive && p.connected !== false);
+const newToken = () => crypto.randomBytes(24).toString('hex');
+function normalizeNickname(value) {
+    const name = String(value ?? '').normalize('NFC').trim().replace(/\s+/g, ' ');
+    if (!name || Array.from(name).length > 6) return null;
+    if (!/^[가-힣ㄱ-ㅎㅏ-ㅣA-Za-z0-9 ]+$/.test(name)) return null;
+    return name;
+}
 
 // [핵심 추가] 3시간 무응답 시 자동 폭파 타이머
 let inactivityTimer = null;
@@ -86,7 +101,7 @@ io.on('connection', (socket) => {
                         store.adminId = socket.id;
                     }
 
-                    const dicts = ['updownScores', 'fiftyScores', 'fiftyFinishTimes', 'bondScores', 'bondStatus', 'wolfScores', 'wolfStatus', 'missingScores', 'missingStatus', 'memoryScores', 'memoryStatus', 'mathStairsScores'];
+                    const dicts = ['updownScores', 'fiftyScores', 'fiftyFinishTimes', 'bondScores', 'bondStatus', 'wolfScores', 'wolfStatus', 'wolfFound', 'missingScores', 'missingStatus', 'memoryScores', 'memoryStatus', 'mathStairsScores'];
                     dicts.forEach(dict => {
                         if (store.data[dict] && store.data[dict][oldId] !== undefined) {
                             store.data[dict][socket.id] = store.data[dict][oldId];
@@ -95,6 +110,7 @@ io.on('connection', (socket) => {
                     });
 
                     store.tokens[data.token] = socket.id;
+                    if (store.settings.fiftyTargetId === oldId) store.settings.fiftyTargetId = socket.id;
 
                     socket.emit('initData', { 
                         myId: socket.id, isAdmin: store.players[socket.id].isAdmin, 
@@ -114,9 +130,11 @@ io.on('connection', (socket) => {
             }
 
             // [2] 처음 코드를 치고 들어온 경우
-            const { nickname, code } = data || {};
-            const isExist = Object.values(store.players).some(p => p.name === nickname);
-            if (isExist && code !== 'gmltn') { socket.emit('joinError', '이미 존재하는 이름입니다.'); return; }
+            const { code } = data || {};
+            const nickname = code === 'gmltn' ? '선생님' : normalizeNickname(data && data.nickname);
+            if (code !== 'gmltn' && !nickname) { socket.emit('joinError', '이름은 한글·영문·숫자로 1~6자까지 입력하세요.'); return; }
+            const isExist = Object.values(store.players).some(p => p && !p.isAdmin && p.name === nickname);
+            if (isExist && code !== 'gmltn') { socket.emit('joinError', '이미 존재하는 이름입니다. 기존 기기라면 잠시 후 자동 재접속됩니다.'); return; }
 
             if (code === 'gmltn') {
                 // 새로운 선생님 접속 시 기존 선생님 밀어내기 (분신술 방지)
@@ -132,9 +150,9 @@ io.on('connection', (socket) => {
                 store.adminId = socket.id;
                 store.players[socket.id] = { id: socket.id, name: nickname || '선생님', isAdmin: true, isBot: false, isAlive: true, connected: true, disconnectedAt: null };
 
-                const newToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-                store.tokens[newToken] = socket.id;
-                socket.emit('tokenAssigned', newToken);
+                const token = newToken();
+                store.tokens[token] = socket.id;
+                socket.emit('tokenAssigned', token);
 
             } else {
                 if (store.data.isLocked) { socket.emit('joinError', '입장 제한'); return; }
@@ -170,9 +188,9 @@ io.on('connection', (socket) => {
                     store.data.mathStairsScores[socket.id] = { floor: 1, score: 0, state: 'ready' };
                 }
 
-                const newToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-                store.tokens[newToken] = socket.id;
-                socket.emit('tokenAssigned', newToken);
+                const token = newToken();
+                store.tokens[token] = socket.id;
+                socket.emit('tokenAssigned', token);
             }
             
             socket.emit('initData', { 
@@ -191,12 +209,14 @@ io.on('connection', (socket) => {
     socket.on('changeModeRequest', (mode) => { 
         try { 
             if (store.players[socket.id]?.isAdmin) {
+                const allowedModes = ['LOBBY', 'UPDOWN_READY', 'FIFTY_READY', 'BOND_READY', 'WOLF_READY', 'MISSING_READY', 'MEMORY_READY', 'MATHSTAIRS_READY'];
+                if (!allowedModes.includes(mode)) return;
                 const wasLocked = store.data.isLocked; 
                 logic.resetGame(mode); 
                 store.data.isLocked = wasLocked; 
                 io.emit('lockStatus', store.data.isLocked);
             } 
-        } catch (e) {} 
+        } catch (e) { console.error('[changeModeRequest]', e); } 
     });
 
     socket.on('explicitLogout', () => {
@@ -223,7 +243,7 @@ io.on('connection', (socket) => {
         } catch(e) { console.error('[socket]', e); }
     });
     socket.on('adminForceEnd', () => { try { if (store.players[socket.id]?.isAdmin) logic.forceEndGame(); } catch(e) { console.error('[socket]', e); } });
-    socket.on('adminForceRoundEnd', () => { logic.forceRoundEnd(socket.id); });
+    socket.on('adminForceRoundEnd', () => { try { logic.forceRoundEnd(socket.id); } catch(e) { console.error('[adminForceRoundEnd]', e); } });
 
     socket.on('toggleLock', () => { 
         try { 
@@ -258,9 +278,25 @@ io.on('connection', (socket) => {
     });
 
     const broadcastSettings = () => io.emit('settingsUpdated', store.settings);
-    socket.on('setUpdownMax', (max) => { if (store.players[socket.id]?.isAdmin) { store.settings.updownMax = max; broadcastSettings(); } });
-    socket.on('setBondSettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.bondMode = data.mode; store.settings.bondRanges = data.ranges; store.settings.bondDisplay = data.display; broadcastSettings(); } });
-    socket.on('setFiftySettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.fiftyMode = data.mode; store.settings.fiftyTargetId = data.targetId; broadcastSettings(); } });
+    socket.on('setUpdownMax', (max) => { if (store.players[socket.id]?.isAdmin) { store.settings.updownMax = clampInt(max, 2, 10000, 100); broadcastSettings(); } });
+    socket.on('setBondSettings', (data) => {
+        if (!store.players[socket.id]?.isAdmin) return;
+        const modes = ['MIX', 'SPLIT', 'GATHER'];
+        const displays = ['NUM', 'DOT', 'MIX'];
+        const allowedRanges = ['9', '10', '19_BASIC', '19_HARD'];
+        const ranges = Array.isArray(data?.ranges) ? [...new Set(data.ranges.filter(v => allowedRanges.includes(v)))].slice(0, 4) : [];
+        store.settings.bondMode = modes.includes(data?.mode) ? data.mode : 'MIX';
+        store.settings.bondRanges = ranges.length ? ranges : ['9'];
+        store.settings.bondDisplay = displays.includes(data?.display) ? data.display : 'NUM';
+        broadcastSettings();
+    });
+    socket.on('setFiftySettings', (data) => {
+        if (!store.players[socket.id]?.isAdmin) return;
+        store.settings.fiftyMode = ['NORMAL', 'AVERAGE', 'BEAT'].includes(data?.mode) ? data.mode : 'NORMAL';
+        const target = store.players[data?.targetId];
+        store.settings.fiftyTargetId = target && !target.isAdmin ? data.targetId : null;
+        broadcastSettings();
+    });
     socket.on('setWolfSettings', (data) => {
         if (!store.players[socket.id]?.isAdmin) return;
         const rawSheep = Number.parseInt(data?.sheepCount, 10);
@@ -275,7 +311,15 @@ io.on('connection', (socket) => {
         store.settings.wolfShuffles = shuffles;
         broadcastSettings();
     });
-    socket.on('setMissingSettings', (data) => { if (store.players[socket.id]?.isAdmin) { store.settings.missingCategory = data.category; store.settings.missingSpeed = data.speed; store.settings.missingCount = data.count; store.settings.missingOptionCount = data.optionCount; broadcastSettings(); } });
+    socket.on('setMissingSettings', (data) => {
+        if (!store.players[socket.id]?.isAdmin) return;
+        const categories = ['animal', 'food', 'object', 'vehicle', 'character', 'all'];
+        store.settings.missingCategory = categories.includes(data?.category) ? data.category : 'animal';
+        store.settings.missingSpeed = clampInt(data?.speed, 1, 30, 10);
+        store.settings.missingCount = clampInt(data?.count, 2, 30, 5);
+        store.settings.missingOptionCount = clampInt(data?.optionCount, 2, 12, 4);
+        broadcastSettings();
+    });
     socket.on('setMemorySettings', (data) => {
         if (store.players[socket.id]?.isAdmin) {
             const rawCount = Number.parseInt(data?.count, 10);
@@ -293,14 +337,16 @@ io.on('connection', (socket) => {
     socket.on('adminNextRound', () => { 
         try { 
             if (store.players[socket.id]?.isAdmin) { 
+                if (store.gameState !== 'PLAYING') return;
                 const mode = store.gameMode; 
-                const alive = Object.values(store.players).filter(p => !p.isAdmin && p.isAlive);
+                const alive = activeStudents();
+                if (alive.length === 0) { socket.emit('adminWarning', '현재 연결된 학생이 없습니다.'); return; }
                 let allDone = true;
 
                 if (mode.includes('BOND')) allDone = alive.every(p => store.data.bondStatus && store.data.bondStatus[p.id] !== null);
                 else if (mode.includes('WOLF')) allDone = alive.every(p => store.data.wolfStatus && store.data.wolfStatus[p.id] !== null);
                 else if (mode.includes('MISSING')) allDone = alive.every(p => store.data.missingStatus && store.data.missingStatus[p.id] !== null);
-                else if (mode.includes('MEMORY')) allDone = alive.every(p => store.data.memoryStatus && store.data.memoryStatus[p.id] === '완료 🏁' || store.data.memoryStatus[p.id] === '시간초과' || store.data.memoryStatus[p.id] === '종료됨');
+                else if (mode.includes('MEMORY')) allDone = alive.every(p => store.data.memoryStatus && ['완료 🏁', '시간초과', '종료됨'].includes(store.data.memoryStatus[p.id]));
 
                 if (!allDone && alive.length > 0) {
                     socket.emit('adminWarning', '아직 선택하지 않은 학생이 있습니다! 학생 관리 패널(⏳)을 확인하거나 강제 종료하세요.');
@@ -338,6 +384,21 @@ io.on('connection', (socket) => {
             leaving.id = socket.id;
             if (leaving.isAdmin) store.adminId = null;
             io.emit('updateUserList', store.players);
+
+            if (!leaving.isAdmin && store.gameState === 'PLAYING') {
+                const active = activeStudents();
+                if (store.gameMode === 'UPDOWN') require('./games/updown').checkFinish(store, logic);
+                else if (store.gameMode === 'WOLF') {
+                    const game = require('./games/wolf'); game.updateAdminStatus(store);
+                    if (active.length > 0 && active.every(p => store.data.wolfStatus?.[p.id] !== null)) io.emit('wolfRoundComplete');
+                } else if (store.gameMode === 'MISSING') {
+                    const game = require('./games/missing'); game.updateAdminStatus(store);
+                    if (active.length > 0 && active.every(p => store.data.missingStatus?.[p.id] !== null)) io.emit('missingRoundComplete', { target: store.data.currentMissingTarget });
+                } else if (store.gameMode === 'MEMORY') {
+                    const game = require('./games/memory'); game.updateAdminStatus(store);
+                    if (active.length > 0 && active.every(p => p.memoryFinished)) io.emit('memoryRoundComplete');
+                } else if (store.gameMode === 'BOND') require('./games/bond').updateAdminStatus(store);
+            }
         } catch (e) { console.error('[disconnect]', e); }
     });
 

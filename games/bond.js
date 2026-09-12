@@ -76,9 +76,12 @@ module.exports = {
     },
 
     handleInput: function(store, logic, socketId, answer) {
+        if (store.gameState !== 'PLAYING' || store.gameMode !== 'BOND') return;
         const p = store.players[socketId];
-        if (!p || !p.isAlive || p.isAdmin) return;
+        if (!p || !p.isAlive || p.connected === false || p.isAdmin) return;
         if (store.data.bondStatus[socketId] !== null) return; 
+        const parsedAnswer = Number.parseInt(answer, 10);
+        if (!Number.isInteger(parsedAnswer) || parsedAnswer < 0 || parsedAnswer > 100) return;
 
         const prob = store.data.currentBondProblem;
         let correctAnswer;
@@ -87,7 +90,7 @@ module.exports = {
         else if (prob.targetPos === 'left') correctAnswer = prob.part1;
         else correctAnswer = prob.part2;
 
-        if (parseInt(answer) === correctAnswer) {
+        if (parsedAnswer === correctAnswer) {
             store.data.bondScores[socketId]++;
             store.data.bondStatus[socketId] = 'correct';
             store.io.to(socketId).emit('bondCorrect');
@@ -103,7 +106,7 @@ module.exports = {
     // [핵심 추가] 트롤 방지용 미응답자 강제 오답 처리
     forceRoundEnd: function(store, logic) {
         Object.values(store.players).forEach(p => {
-            if (!p.isAdmin && p.isAlive && store.data.bondStatus[p.id] === null) {
+            if (!p.isAdmin && p.isAlive && p.connected !== false && store.data.bondStatus[p.id] === null) {
                 store.data.bondStatus[p.id] = 'wrong';
                 store.io.to(p.id).emit('bondWrong');
             }
@@ -121,7 +124,7 @@ module.exports = {
             const stat = store.data.bondStatus[id];
             if (stat === 'correct') statusList.correct.push(p.name);
             else if (stat === 'wrong') statusList.wrong.push(p.name);
-            else statusList.yet.push(p.name);
+            else if (p.connected !== false) statusList.yet.push(p.name);
         });
         store.io.to(store.adminId).emit('statusBoardUpdate', statusList);
     },
@@ -131,16 +134,11 @@ module.exports = {
             .filter(([id, s]) => store.players[id] && !store.players[id].isAdmin)
             .sort((a, b) => b[1] - a[1]);
 
-        let rankText = entries.map((entry, i) => {
+        const rows = entries.map((entry, i) => {
             const p = store.players[entry[0]];
-            return `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.1); align-items:center;">
-                <span style="color:#aaa; font-size:11px; width:30px;">${i+1}위</span>
-                <span style="font-weight:bold; flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:5px;">${p.name}</span>
-                <span style="color:#f1c40f; font-weight:bold; font-size:13px;">${entry[1]}개</span>
-            </div>`;
-        }).join('');
-
-        store.io.emit('liveRankUpdate', rankText || "<div style='color:#ccc; text-align:center;'>대기 중...</div>");
+            return { rank: i + 1, name: p.name, value: `${entry[1]}개`, tone: 'progress' };
+        });
+        store.io.emit('liveRankUpdate', { rows });
     },
 
     endGame: function(store, logic) {

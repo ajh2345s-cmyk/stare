@@ -207,3 +207,11 @@ ul, li { list-style: none !important; padding: 0; margin: 0; }
 }
 #math-stairs-game-area{overflow:hidden;}
 #math-stairs-frame{background:#0b1220;}
+#rank-content .rank-row { display:flex; justify-content:space-between; gap:4px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.1); align-items:center; }
+#rank-content .rank-position { color:#aaa; font-size:11px; width:30px; flex:0 0 30px; }
+#rank-content .rank-name { font-weight:bold; flex:1; min-width:0; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-left:4px; }
+#rank-content .rank-status { color:#aaa; font-size:10px; font-weight:normal; }
+#rank-content .rank-value { font-weight:bold; font-size:12px; white-space:nowrap; }
+#rank-content .rank-value.progress { color:#f1c40f; }
+#rank-content .rank-value.success { color:#55efc4; }
+#rank-content .rank-empty { color:#ccc; text-align:center; }

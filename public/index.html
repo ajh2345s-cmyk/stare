@@ -198,7 +198,7 @@
                 <button class="admin-btn mode-select-btn" style="background:#00b894; color:#fff;" onclick="req('MATHSTAIRS_READY')">🪜 수학의 계단</button>
 
                 <div id="setting-row-updown" style="display:none;">
-                    <div class="admin-setting-grid"><label>최대 숫자</label><input type="number" id="updown-max-input" value="100" onchange="socket.emit('setUpdownMax', this.value)"></div>
+                    <div class="admin-setting-grid"><label>최대 숫자</label><input type="number" id="updown-max-input" value="100" min="2" max="10000" onchange="socket.emit('setUpdownMax', this.value)"></div>
                 </div>
                 <div id="admin-updown-answer-box" style="display:none; margin-top:5px; text-align:center;"><button class="admin-btn" style="background:#333; border:1px solid #aaa;" onclick="toggleAdminAnswer()">🔒 정답 보기</button><div id="admin-updown-answer-text" style="display:none; color:#2ed573; font-weight:bold; font-size:16px;">???</div></div>
 
@@ -213,7 +213,7 @@
                 </div>
 
                 <div id="setting-row-missing" style="display:none;">
-                    <div class="admin-setting-grid"><label>퀴즈 주제</label><select id="missing-cat" onchange="updateMissingSettings()"><option value="animal">🐶 동물/곤충</option><option value="food">🍔 음식/과일</option><option value="object">🧸 물건</option><option value="vehicle">🚗 탈것</option><option value="character">🕵️ 캐릭터</option><option value="all">🌪️ 몽땅 섞기</option></select><label>보여줄 속도</label><input type="number" id="missing-spd" value="10" onchange="updateMissingSettings()"><label>보여줄 갯수</label><input type="number" id="missing-cnt" value="5" onchange="updateMissingSettings()"><label>보기 갯수</label><input type="number" id="missing-opt" value="4" onchange="updateMissingSettings()"></div>
+                    <div class="admin-setting-grid"><label>퀴즈 주제</label><select id="missing-cat" onchange="updateMissingSettings()"><option value="animal">🐶 동물/곤충</option><option value="food">🍔 음식/과일</option><option value="object">🧸 물건</option><option value="vehicle">🚗 탈것</option><option value="character">🕵️ 캐릭터</option><option value="all">🌪️ 몽땅 섞기</option></select><label>보여줄 속도</label><input type="number" id="missing-spd" value="10" min="1" max="30" onchange="updateMissingSettings()"><label>보여줄 개수</label><input type="number" id="missing-cnt" value="5" min="2" max="30" onchange="updateMissingSettings()"><label>보기 개수</label><input type="number" id="missing-opt" value="4" min="2" max="12" onchange="updateMissingSettings()"></div>
                 </div>
 
                 <div id="setting-row-memory" style="display:none;">

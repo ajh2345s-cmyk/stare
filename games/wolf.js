@@ -146,12 +146,13 @@ module.exports = {
     },
 
     handleInput: function(store, logic, socketId, index) {
+        if (store.gameState !== 'PLAYING' || store.gameMode !== 'WOLF') return;
         const p = store.players[socketId];
-        if (!p || !p.isAlive || p.isAdmin || store.data.wolfStatus[socketId] !== null) return;
+        if (!p || !p.isAlive || p.connected === false || p.isAdmin || store.data.wolfStatus[socketId] !== null) return;
 
         const targets = Array.isArray(store.data.currentWolfTargets) ? store.data.currentWolfTargets : [];
         const selected = Number.parseInt(index, 10);
-        if (!Number.isInteger(selected) || selected < 0) return;
+        if (!Number.isInteger(selected) || selected < 0 || selected >= (Number(store.settings.wolfSheepCount) + Number(store.settings.wolfCount))) return;
 
         store.data.wolfFound[socketId] = Array.isArray(store.data.wolfFound[socketId]) ? store.data.wolfFound[socketId] : [];
         if (store.data.wolfFound[socketId].includes(selected)) return;
@@ -174,14 +175,14 @@ module.exports = {
         this.updateAdminStatus(store);
         this.updateRanking(store);
 
-        const alive = Object.values(store.players).filter(pl => !pl.isAdmin && pl.isAlive);
+        const alive = Object.values(store.players).filter(pl => !pl.isAdmin && pl.isAlive && pl.connected !== false);
         if (alive.length > 0 && alive.every(pl => store.data.wolfStatus[pl.id] !== null)) {
             store.io.emit('wolfRoundComplete');
         }
     },
 
     forceRoundEnd: function(store) {
-        const alive = Object.values(store.players).filter(pl => !pl.isAdmin && pl.isAlive);
+        const alive = Object.values(store.players).filter(pl => !pl.isAdmin && pl.isAlive && pl.connected !== false);
         alive.forEach(p => {
             if (store.data.wolfStatus[p.id] === null) store.data.wolfStatus[p.id] = 'wrong';
         });
@@ -197,7 +198,7 @@ module.exports = {
             const stat = store.data.wolfStatus?.[id];
             if (stat === 'correct') correct.push(`${p.name} (${store.data.wolfScores[id] || 0}점)`);
             else if (stat === 'wrong') wrong.push(`${p.name} (${store.data.wolfScores[id] || 0}점)`);
-            else yet.push(p.name);
+            else if (p.connected !== false) yet.push(p.name);
         });
         store.io.emit('statusBoardUpdate', {
             correct, wrong, yet,
@@ -209,14 +210,11 @@ module.exports = {
         const entries = Object.entries(store.data.wolfScores || {})
             .filter(([id]) => store.players[id] && !store.players[id].isAdmin)
             .sort((a,b) => (b[1] || 0) - (a[1] || 0));
-        const rankText = entries.map((entry, i) => {
+        const rows = entries.map((entry, i) => {
             const p = store.players[entry[0]];
-            return `<div style="display:flex;justify-content:space-between;gap:4px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.1);align-items:center;">
-                <span style="color:#aaa;font-size:11px;width:28px;">${i+1}위</span>
-                <span style="font-weight:bold;flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px;">${p.name}</span>
-                <span style="color:#f1c40f;font-weight:bold;font-size:13px;">${entry[1] || 0}점</span></div>`;
-        }).join('');
-        store.io.emit('liveRankUpdate', rankText || "<div style='color:#ccc;text-align:center;'>대기 중...</div>");
+            return { rank: i + 1, name: p.name, value: `${entry[1] || 0}점`, tone: 'progress' };
+        });
+        store.io.emit('liveRankUpdate', { rows });
     },
 
     endGame: function(store, logic) {

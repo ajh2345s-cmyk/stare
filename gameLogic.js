@@ -1,12 +1,16 @@
 const store = require('./gameStore'); 
 let gameUpdown, gameFifty, gameBond, gameWolf, gameMissing, gameMemory, gameMathStairs;
-try { gameUpdown = require('./games/updown'); } catch(e) {}
-try { gameFifty = require('./games/fifty'); } catch(e) {}
-try { gameBond = require('./games/bond'); } catch(e) {}
-try { gameWolf = require('./games/wolf'); } catch(e) {}
-try { gameMissing = require('./games/missing'); } catch(e) {}
-try { gameMemory = require('./games/memory'); } catch(e) {}
-try { gameMathStairs = require('./games/math_stairs'); } catch(e) {}
+function loadGame(name) {
+    try { return require(`./games/${name}`); }
+    catch (error) { console.error(`[game-load] ${name} 모듈을 불러오지 못했습니다.`, error); return null; }
+}
+gameUpdown = loadGame('updown');
+gameFifty = loadGame('fifty');
+gameBond = loadGame('bond');
+gameWolf = loadGame('wolf');
+gameMissing = loadGame('missing');
+gameMemory = loadGame('memory');
+gameMathStairs = loadGame('math_stairs');
 
 const logic = {};
 
@@ -17,12 +21,11 @@ logic.resetGame = function(mode = 'LOBBY') {
         store.timerMain = null; store.timerTask = null;
 
         store.gameState = 'WAITING'; store.gameMode = mode;
-        store.data.gameStartPending = false;
-        store.data.mathStairsStarted = false;
-        
-        let currentRankVis = store.data && store.data.isStudentRankVisible !== undefined ? store.data.isStudentRankVisible : true;
-        store.data = {};
-        store.data.isStudentRankVisible = currentRankVis;
+        const commonData = {
+            isStudentRankVisible: store.data && store.data.isStudentRankVisible !== undefined ? store.data.isStudentRankVisible : true,
+            isLocked: !!(store.data && store.data.isLocked)
+        };
+        store.data = { ...commonData, gameStartPending: false, mathStairsStarted: false };
         
         store.data.updownScores = {}; store.data.fiftyScores = {}; store.data.fiftyFinishTimes = {};
         store.data.bondScores = {}; store.data.wolfScores = {}; store.data.missingScores = {}; store.data.memoryScores = {}; store.data.mathStairsScores = {};
@@ -57,7 +60,7 @@ logic.endGame = function(title, winners = [], msg = "", extraData = null) {
 logic.startGame = function() {
     try {
         if (store.gameState !== 'WAITING') return;
-        const studentCount = Object.values(store.players || {}).filter(p => p && !p.isAdmin && !p.isBot).length;
+        const studentCount = Object.values(store.players || {}).filter(p => p && !p.isAdmin && !p.isBot && p.connected !== false).length;
         if (studentCount === 0) {
             if (store.io) store.io.emit('adminWarning', '학생이 한 명 이상 입장해야 게임을 시작할 수 있습니다.');
             return;
@@ -107,7 +110,7 @@ logic.forceEndGame = function() {
         if (mode.includes('UPDOWN') && gameUpdown) {
             gameUpdown.checkFinish(store, logic);
             if(store.gameState !== 'WAITING') {
-                 let sorted = Object.entries(store.data.updownScores || {}).filter(([id]) => store.players[id]).sort((a, b) => a[1] - b[1]);
+                 let sorted = Object.entries(store.data.updownScores || {}).filter(([id, attempts]) => store.players[id] && (store.players[id].updownFinished || Number(attempts) > 0)).sort((a, b) => a[1] - b[1]);
                  let winners = sorted.length > 0 ? sorted.filter(r => r[1] === sorted[0][1]).map(r => store.players[r[0]].name) : [];
                  let rankMsg = sorted.slice(0, 10).map((e, i) => `${i+1}위: ${store.players[e[0]].name} (${e[1]}회)`).join('<br>');
                  logic.endGame("업다운 게임 종료", winners, rankMsg);
@@ -126,6 +129,7 @@ logic.forceEndGame = function() {
 logic.forceRoundEnd = function(socketId) {
     try {
         if (!store.players[socketId] || !store.players[socketId].isAdmin) return;
+        if (store.gameState !== 'PLAYING') return;
         const mode = store.gameMode || '';
         
         // [수정됨] 가르기 모으기도 강제 라운드 종료(미응답자 오답처리) 가능
